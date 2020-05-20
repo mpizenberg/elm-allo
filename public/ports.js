@@ -15,16 +15,11 @@ activatePorts = (app, containerSize) => {
   // });
 
   // Fullscreen
-  app.ports.requestFullscreen.subscribe(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-    }
-  });
-  app.ports.exitFullscreen.subscribe(() => {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    }
-  });
+  fscreen = Fscreen();
+  app.ports.requestFullscreen.subscribe(() =>
+    fscreen.requestFullscreen(document.documentElement)
+  );
+  app.ports.exitFullscreen.subscribe(() => fscreen.exitFullscreen());
 
   // WebRTC ports -------------------
 
