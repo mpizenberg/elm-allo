@@ -9,10 +9,10 @@ activatePorts = (app, containerSize) => {
   );
 
   // Hide / Show video
-  app.ports.hideShow.subscribe((camOn) => {
-    const localVideo = document.getElementById("localVideo");
-    camOn ? localVideo.play() : localVideo.pause();
-  });
+  // app.ports.hideShow.subscribe((camOn) => {
+  //   const localVideo = document.getElementById("localVideo");
+  //   camOn ? localVideo.play() : localVideo.pause();
+  // });
 
   // Fullscreen
   app.ports.requestFullscreen.subscribe(() => {
@@ -25,4 +25,32 @@ activatePorts = (app, containerSize) => {
       document.exitFullscreen();
     }
   });
+
+  // WebRTC ports -------------------
+
+  // Start local stream
+  app.ports.readyForLocalStream.subscribe((localVideoId) => {
+    initWebRTC(
+      localVideoId,
+      app.ports.newStream.send,
+      app.ports.remoteDisconnected.send
+    );
+  });
+
+  // Update the srcObject of a video with a stream
+  app.ports.updateStream.subscribe(({ id, stream }) => {
+    requestAnimationFrame(() => {
+      console.log("updateStream", id);
+      const video = document.getElementById(id);
+      video.srcObject = stream;
+    });
+  });
+
+  // Join and leave a call
+  app.ports.joinCall.subscribe(() => joinCall());
+  app.ports.leaveCall.subscribe(() => leaveCall());
+
+  // On / Off microphone and video
+  app.ports.mute.subscribe(mute);
+  app.ports.hide.subscribe(hide);
 };

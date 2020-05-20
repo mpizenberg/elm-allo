@@ -11,8 +11,9 @@ import FeatherIcons as Icon
 import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Keyed
-import Json.Encode as Encode
+import Json.Encode as Encode exposing (Value)
 import Layout2D
+import Set exposing (Set)
 import UI
 
 
@@ -26,6 +27,38 @@ port requestFullscreen : () -> Cmd msg
 
 
 port exitFullscreen : () -> Cmd msg
+
+
+
+-- WebRTC ports
+
+
+port readyForLocalStream : String -> Cmd msg
+
+
+port newStream : ({ id : Int, stream : Value } -> msg) -> Sub msg
+
+
+port updateStream : { id : Int, stream : Value } -> Cmd msg
+
+
+port remoteDisconnected : (Int -> msg) -> Sub msg
+
+
+port joinCall : () -> Cmd msg
+
+
+port leaveCall : () -> Cmd msg
+
+
+port mute : Bool -> Cmd msg
+
+
+port hide : Bool -> Cmd msg
+
+
+
+-- Main
 
 
 main : Program Flags Model Msg
@@ -50,6 +83,7 @@ type alias Model =
     , joined : Bool
     , device : Element.Device
     , nbPeers : Int
+    , remotePeers : Set Int
     }
 
 
@@ -60,6 +94,9 @@ type Msg
     | SetJoined Bool
     | NewPeer
     | LoosePeer
+      -- WebRTC messages
+    | NewStream { id : Int, stream : Value }
+    | RemoteDisconnected Int
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -73,8 +110,9 @@ init { width, height } =
             Element.classifyDevice
                 { width = round width, height = round height }
       , nbPeers = 0
+      , remotePeers = Set.empty
       }
-    , Cmd.none
+    , readyForLocalStream "localVideo"
     )
 
 
@@ -94,21 +132,21 @@ update msg model =
 
         SetMic mic ->
             ( { model | mic = mic }
-            , Cmd.none
+            , mute mic
             )
 
         SetCam cam ->
             ( { model | cam = cam }
-            , hideShow cam
+            , hide cam
             )
 
         SetJoined joined ->
-            ( { model | joined = joined }
+            ( { model | joined = joined, remotePeers = Set.empty }
             , if joined then
-                requestFullscreen ()
+                Cmd.batch [ requestFullscreen (), joinCall () ]
 
               else
-                exitFullscreen ()
+                Cmd.batch [ exitFullscreen (), leaveCall () ]
             )
 
         NewPeer ->
@@ -121,10 +159,25 @@ update msg model =
             , Cmd.none
             )
 
+        -- WebRTC messages
+        NewStream { id, stream } ->
+            ( { model | remotePeers = Set.insert id model.remotePeers }
+            , updateStream { id = id, stream = stream }
+            )
+
+        RemoteDisconnected id ->
+            ( { model | remotePeers = Set.remove id model.remotePeers }
+            , Cmd.none
+            )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    resize Resize
+    Sub.batch
+        [ resize Resize
+        , newStream NewStream
+        , remoteDisconnected RemoteDisconnected
+        ]
 
 
 
@@ -157,15 +210,18 @@ layout model =
         ]
         [ Element.row [ Element.padding UI.spacing, Element.width Element.fill ]
             [ filler
-            , Input.button [] { onPress = Just LoosePeer, label = Element.text "--" }
+
+            -- , Input.button [] { onPress = Just LoosePeer, label = Element.text "--" }
             , micControl model.device model.mic
             , filler
             , camControl model.device model.cam
-            , Input.button [] { onPress = Just NewPeer, label = Element.text "++" }
+
+            -- , Input.button [] { onPress = Just NewPeer, label = Element.text "++" }
+            , Element.text <| String.fromInt <| Set.size model.remotePeers
             , filler
             ]
         , Element.html <|
-            videoStreams model.width availableHeight model.joined model.nbPeers
+            videoStreams model.width availableHeight model.joined model.remotePeers
         ]
 
 
@@ -279,8 +335,8 @@ toggleCheckboxWidget { offColor, onColor, sliderColor, toggleWidth, toggleHeight
 -- Video element
 
 
-videoStreams : Float -> Float -> Bool -> Int -> Html Msg
-videoStreams width height joined nbPeers =
+videoStreams : Float -> Float -> Bool -> Set Int -> Html Msg
+videoStreams width height joined remotePeers =
     if not joined then
         -- Dedicated layout when we are not connected yet
         Html.Keyed.node "div"
@@ -288,11 +344,11 @@ videoStreams width height joined nbPeers =
             , HA.style "height" (String.fromFloat height ++ "px")
             , HA.style "width" "100%"
             ]
-            [ ( "localVideo", video "local.mp4" "localVideo" )
+            [ ( "localVideo", video "" "localVideo" )
             , ( "joinButton", joinButton )
             ]
 
-    else if nbPeers <= 1 then
+    else if Set.size remotePeers <= 1 then
         -- Dedicated layout for 1-1 conversation
         let
             thumbHeight =
@@ -304,14 +360,20 @@ videoStreams width height joined nbPeers =
             , HA.style "height" (String.fromFloat height ++ "px")
             , HA.style "position" "relative"
             ]
-            (if nbPeers == 0 then
-                [ ( "localVideo", thumbVideo thumbHeight "local.mp4" "localVideo" )
+            (if Set.isEmpty remotePeers then
+                [ ( "localVideo", thumbVideo thumbHeight "" "localVideo" )
                 , ( "leaveButton", leaveButton 0 )
                 ]
 
              else
-                [ ( "localVideo", thumbVideo thumbHeight "local.mp4" "localVideo" )
-                , ( "1", remoteVideo width height "remote.mp4" "1" )
+                let
+                    remotePeerId =
+                        List.head (Set.toList remotePeers)
+                            |> Maybe.withDefault -1
+                            |> String.fromInt
+                in
+                [ ( "localVideo", thumbVideo thumbHeight "" "localVideo" )
+                , ( remotePeerId, remoteVideo width height "" remotePeerId )
                 , ( "leaveButton", leaveButton height )
                 ]
             )
@@ -320,19 +382,19 @@ videoStreams width height joined nbPeers =
         -- We use a grid layout if more than 1 peer
         let
             ( ( nbCols, nbRows ), ( cellWidth, cellHeight ) ) =
-                Layout2D.fixedGrid width height (3 / 2) (nbPeers + 1)
+                Layout2D.fixedGrid width height (3 / 2) (Set.size remotePeers + 1)
 
             remoteVideos =
-                List.range 1 nbPeers
+                Set.toList remotePeers
                     |> List.map
                         (\id ->
                             ( String.fromInt id
-                            , gridVideoItem "remote.mp4" (String.fromInt id)
+                            , gridVideoItem False "" (String.fromInt id)
                             )
                         )
 
             localVideo =
-                ( "localVideo", gridVideoItem "local.mp4" "localVideo" )
+                ( "localVideo", gridVideoItem True "" "localVideo" )
 
             allVideos =
                 remoteVideos ++ [ localVideo ]
@@ -372,13 +434,13 @@ videosGrid height cellWidthNoSpace cellHeightNoSpace cols rows videos =
         (videos ++ [ ( "leaveButton", leaveButton 0 ) ])
 
 
-gridVideoItem : String -> String -> Html msg
-gridVideoItem src id =
+gridVideoItem : Bool -> String -> String -> Html msg
+gridVideoItem muted src id =
     Html.video
         [ HA.id id
-        , HA.autoplay False
+        , HA.autoplay True
         , HA.loop True
-        , HA.property "muted" (Encode.bool True)
+        , HA.property "muted" (Encode.bool muted)
         , HA.attribute "playsinline" "playsinline"
 
         -- prevent focus outline
@@ -395,9 +457,9 @@ remoteVideo : Float -> Float -> String -> String -> Html msg
 remoteVideo width height src id =
     Html.video
         [ HA.id id
-        , HA.autoplay False
+        , HA.autoplay True
         , HA.loop True
-        , HA.property "muted" (Encode.bool True)
+        , HA.property "muted" (Encode.bool False)
         , HA.attribute "playsinline" "playsinline"
 
         -- prevent focus outline
