@@ -22,6 +22,12 @@ port resize : ({ width : Float, height : Float } -> msg) -> Sub msg
 port hideShow : Bool -> Cmd msg
 
 
+port requestFullscreen : () -> Cmd msg
+
+
+port exitFullscreen : () -> Cmd msg
+
+
 main : Program Flags Model Msg
 main =
     Browser.element
@@ -98,7 +104,11 @@ update msg model =
 
         SetJoined joined ->
             ( { model | joined = joined }
-            , Cmd.none
+            , if joined then
+                requestFullscreen ()
+
+              else
+                exitFullscreen ()
             )
 
         NewPeer ->

@@ -13,4 +13,16 @@ activatePorts = (app, containerSize) => {
     const localVideo = document.getElementById("localVideo");
     camOn ? localVideo.play() : localVideo.pause();
   });
+
+  // Fullscreen
+  app.ports.requestFullscreen.subscribe(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    }
+  });
+  app.ports.exitFullscreen.subscribe(() => {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  });
 };
