@@ -62,7 +62,7 @@ init { width, height } =
       , height = height
       , mic = True
       , cam = True
-      , joined = True
+      , joined = False
       , device =
             Element.classifyDevice
                 { width = round width, height = round height }
@@ -154,7 +154,8 @@ layout model =
             , Input.button [] { onPress = Just NewPeer, label = Element.text "++" }
             , filler
             ]
-        , videoStreams model.width availableHeight model.joined model.nbPeers
+        , Element.html <|
+            videoStreams model.width availableHeight model.joined model.nbPeers
         ]
 
 
@@ -261,84 +262,48 @@ toggleCheckboxWidget { offColor, onColor, sliderColor, toggleWidth, toggleHeight
                     ]
                     (Element.text "")
         ]
-    <|
-        Element.text ""
+        (Element.text "")
 
 
 
 -- Video element
 
 
-videoStreams : Float -> Float -> Bool -> Int -> Element Msg
+videoStreams : Float -> Float -> Bool -> Int -> Html Msg
 videoStreams width height joined nbPeers =
     if not joined then
         -- Dedicated layout when we are not connected yet
-        Keyed.el
-            [ Element.width Element.fill
-            , Element.fill
-                |> Element.maximum (round height)
-                |> Element.minimum UI.minVideoHeight
-                |> Element.height
-            , Element.htmlAttribute <| HA.id "streams"
-            , Element.inFront joinButton
+        Html.Keyed.node "div"
+            [ HA.style "display" "flex"
+            , HA.style "height" (String.fromFloat height ++ "px")
+            , HA.style "width" "100%"
             ]
-            ( "streams"
-            , Element.html <|
-                Html.Keyed.node "div"
-                    [ HA.style "display" "flex"
-                    , HA.style "flex" "1 1 auto"
-                    , HA.style "max-width" "100%"
-                    , HA.style "max-height" "100%"
-                    ]
-                    [ ( "localVideo", video "local.mp4" "localVideo" ) ]
-            )
+            [ ( "localVideo", video "local.mp4" "localVideo" )
+            , ( "joinButton", joinButton )
+            ]
 
     else if nbPeers <= 1 then
         -- Dedicated layout for 1-1 conversation
         let
-            localVideoHeight =
+            thumbHeight =
                 max (toFloat UI.minVideoHeight) (height / 4)
                     |> String.fromFloat
         in
-        Keyed.el
-            [ Element.width Element.fill
-            , Element.fill
-                |> Element.maximum (round height)
-                |> Element.minimum UI.minVideoHeight
-                |> Element.height
-            , Element.htmlAttribute <| HA.id "streams"
-            , Element.htmlAttribute <| HA.style "justify-content" "flex-end"
-            , Element.padding UI.spacing
-            , Element.inFront leaveButton
-            , Element.behindContent <|
-                if nbPeers == 0 then
-                    Element.none
-
-                else
-                    -- I can't figure out how to keep this from getting
-                    -- destroyed by the virtual DOM.
-                    Element.html <|
-                        -- The "Keyed" node needs to be at the Html level
-                        -- to match with the Grid case when more peers
-                        Html.Keyed.node "div"
-                            [ HA.style "display" "flex"
-                            , HA.style "max-height" "100%"
-                            , HA.id "tototo"
-                            ]
-                            [ ( "1", video "remote.mp4" "1" )
-                            ]
+        Html.Keyed.node "div"
+            [ HA.style "width" "100%"
+            , HA.style "height" (String.fromFloat height ++ "px")
+            , HA.style "position" "relative"
             ]
-            ( "streams"
-            , Element.html <|
-                Html.Keyed.node "div"
-                    [ HA.style "height" (localVideoHeight ++ "px")
-                    , HA.style "display" "flex"
-                    , HA.style "flex-direction" "column"
-                    , HA.style "align-items" "flex-end"
-                    , HA.style "z-index" "0"
-                    ]
-                    [ ( "localVideo", thumbVideo "local.mp4" "localVideo" )
-                    ]
+            (if nbPeers == 0 then
+                [ ( "localVideo", thumbVideo thumbHeight "local.mp4" "localVideo" )
+                , ( "leaveButton", leaveButton 0 )
+                ]
+
+             else
+                [ ( "localVideo", thumbVideo thumbHeight "local.mp4" "localVideo" )
+                , ( "1", remoteVideo width height "remote.mp4" "1" )
+                , ( "leaveButton", leaveButton height )
+                ]
             )
 
     else
@@ -362,17 +327,11 @@ videoStreams width height joined nbPeers =
             allVideos =
                 remoteVideos ++ [ localVideo ]
         in
-        Keyed.el
-            [ Element.width Element.fill
-            , Element.height Element.fill
-            , Element.inFront leaveButton
-            , Element.htmlAttribute <| HA.id "streams"
-            ]
-            ( "streams", videosGrid cellWidth cellHeight nbCols nbRows allVideos )
+        videosGrid height cellWidth cellHeight nbCols nbRows allVideos
 
 
-videosGrid : Float -> Float -> Int -> Int -> List ( String, Html msg ) -> Element msg
-videosGrid cellWidthNoSpace cellHeightNoSpace cols rows videos =
+videosGrid : Float -> Float -> Float -> Int -> Int -> List ( String, Html Msg ) -> Html Msg
+videosGrid height cellWidthNoSpace cellHeightNoSpace cols rows videos =
     let
         cellWidth =
             cellWidthNoSpace - toFloat (cols - 1) / toFloat cols * toFloat UI.spacing
@@ -388,18 +347,19 @@ videosGrid cellWidthNoSpace cellHeightNoSpace cols rows videos =
             List.repeat rows (String.fromFloat cellHeight ++ "px")
                 |> String.join " "
     in
-    Element.html <|
-        Html.Keyed.node "div"
-            [ HA.style "flex-grow" "1"
-            , HA.style "display" "grid"
-            , HA.style "grid-template-columns" gridWidth
-            , HA.style "grid-template-rows" gridHeight
-            , HA.style "justify-content" "space-evenly"
-            , HA.style "align-content" "start"
-            , HA.style "column-gap" (String.fromInt UI.spacing ++ "px")
-            , HA.style "row-gap" (String.fromInt UI.spacing ++ "px")
-            ]
-            videos
+    Html.Keyed.node "div"
+        [ HA.style "width" "100%"
+        , HA.style "height" (String.fromFloat height ++ "px")
+        , HA.style "position" "relative"
+        , HA.style "display" "grid"
+        , HA.style "grid-template-columns" gridWidth
+        , HA.style "grid-template-rows" gridHeight
+        , HA.style "justify-content" "space-evenly"
+        , HA.style "align-content" "start"
+        , HA.style "column-gap" (String.fromInt UI.spacing ++ "px")
+        , HA.style "row-gap" (String.fromInt UI.spacing ++ "px")
+        ]
+        (videos ++ [ ( "leaveButton", leaveButton 0 ) ])
 
 
 gridVideoItem : String -> String -> Html msg
@@ -421,8 +381,8 @@ gridVideoItem src id =
         [ Html.source [ HA.src src, HA.type_ "video/mp4" ] [] ]
 
 
-thumbVideo : String -> String -> Html msg
-thumbVideo src id =
+remoteVideo : Float -> Float -> String -> String -> Html msg
+remoteVideo width height src id =
     Html.video
         [ HA.id id
         , HA.autoplay False
@@ -434,9 +394,39 @@ thumbVideo src id =
         , HA.style "outline" "none"
 
         -- grow and center video
-        , HA.style "flex-grow" "1"
-        , HA.style "height" "100%"
+        , HA.style "max-height" (String.fromFloat height ++ "px")
+        , HA.style "height" (String.fromFloat height ++ "px")
+        , HA.style "max-width" (String.fromFloat width ++ "px")
+        , HA.style "width" (String.fromFloat width ++ "px")
+        , HA.style "position" "relative"
+        , HA.style "left" "50%"
+        , HA.style "bottom" "50%"
+        , HA.style "transform" "translate(-50%, 50%)"
+        , HA.style "z-index" "-1"
+        ]
+        [ Html.source [ HA.src src, HA.type_ "video/mp4" ] [] ]
+
+
+thumbVideo : String -> String -> String -> Html msg
+thumbVideo height src id =
+    Html.video
+        [ HA.id id
+        , HA.autoplay True
+        , HA.loop True
+        , HA.property "muted" (Encode.bool True)
+        , HA.attribute "playsinline" "playsinline"
+
+        -- prevent focus outline
+        , HA.style "outline" "none"
+
+        -- grow and center video
+        , HA.style "position" "absolute"
+        , HA.style "bottom" "0"
+        , HA.style "right" "0"
         , HA.style "max-width" "100%"
+        , HA.style "max-height" (height ++ "px")
+        , HA.style "height" (height ++ "px")
+        , HA.style "margin" (String.fromInt UI.spacing ++ "px")
         ]
         [ Html.source [ HA.src src, HA.type_ "video/mp4" ] [] ]
 
@@ -445,7 +435,7 @@ video : String -> String -> Html msg
 video src id =
     Html.video
         [ HA.id id
-        , HA.autoplay False
+        , HA.autoplay True
         , HA.loop True
         , HA.property "muted" (Encode.bool True)
         , HA.attribute "playsinline" "playsinline"
@@ -461,66 +451,81 @@ video src id =
         [ Html.source [ HA.src src, HA.type_ "video/mp4" ] [] ]
 
 
-joinButton : Element Msg
+joinButton : Html Msg
 joinButton =
-    Input.button
-        [ Element.centerX
-        , Element.centerY
-        , Element.htmlAttribute <| HA.style "outline" "none"
+    Element.layoutWith
+        { options = [ Element.noStaticStyleSheet ] }
+        [ Element.htmlAttribute <| HA.style "position" "absolute"
+        , Element.htmlAttribute <| HA.style "z-index" "1"
         ]
-        { onPress = Just (SetJoined True)
-        , label =
-            Element.el
-                [ Background.color UI.green
-                , Element.htmlAttribute <| HA.style "outline" "none"
-                , Element.width <| Element.px UI.joinButtonSize
-                , Element.height <| Element.px UI.joinButtonSize
-                , Border.rounded <| UI.joinButtonSize // 2
-                , Border.shadow
-                    { offset = ( 0, 0 )
-                    , size = 0
-                    , blur = UI.joinButtonBlur
-                    , color = UI.black
-                    }
-                , Font.color UI.white
-                ]
-                (Icon.phone
-                    |> Icon.withSize (toFloat UI.joinButtonSize / 2)
-                    |> Icon.toHtml []
-                    |> Element.html
-                    |> Element.el [ Element.centerX, Element.centerY ]
-                )
-        }
+        (Input.button
+            [ Element.centerX
+            , Element.centerY
+            , Element.htmlAttribute <| HA.style "outline" "none"
+            ]
+            { onPress = Just (SetJoined True)
+            , label =
+                Element.el
+                    [ Background.color UI.green
+                    , Element.htmlAttribute <| HA.style "outline" "none"
+                    , Element.width <| Element.px UI.joinButtonSize
+                    , Element.height <| Element.px UI.joinButtonSize
+                    , Border.rounded <| UI.joinButtonSize // 2
+                    , Border.shadow
+                        { offset = ( 0, 0 )
+                        , size = 0
+                        , blur = UI.joinButtonBlur
+                        , color = UI.black
+                        }
+                    , Font.color UI.white
+                    ]
+                    (Icon.phone
+                        |> Icon.withSize (toFloat UI.joinButtonSize / 2)
+                        |> Icon.toHtml []
+                        |> Element.html
+                        |> Element.el [ Element.centerX, Element.centerY ]
+                    )
+            }
+        )
 
 
-leaveButton : Element Msg
-leaveButton =
-    Input.button
-        [ Element.centerX
-        , Element.alignBottom
-        , Element.padding <| 3 * UI.spacing
-        , Element.htmlAttribute <| HA.style "outline" "none"
+leaveButton : Float -> Html Msg
+leaveButton height =
+    Element.layoutWith
+        { options = [ Element.noStaticStyleSheet ] }
+        [ Element.width Element.fill
+        , Element.height Element.fill
+        , Element.htmlAttribute <| HA.style "position" "absolute"
+        , Element.htmlAttribute <|
+            HA.style "transform" ("translateY(-" ++ String.fromFloat height ++ "px)")
         ]
-        { onPress = Just (SetJoined False)
-        , label =
-            Element.el
-                [ Background.color UI.red
-                , Element.htmlAttribute <| HA.style "outline" "none"
-                , Element.width <| Element.px UI.leaveButtonSize
-                , Element.height <| Element.px UI.leaveButtonSize
-                , Border.rounded <| UI.leaveButtonSize // 2
-                , Border.shadow
-                    { offset = ( 0, 0 )
-                    , size = 0
-                    , blur = UI.joinButtonBlur
-                    , color = UI.black
-                    }
-                , Font.color UI.white
-                ]
-                (Icon.phoneOff
-                    |> Icon.withSize (toFloat UI.leaveButtonSize / 2)
-                    |> Icon.toHtml []
-                    |> Element.html
-                    |> Element.el [ Element.centerX, Element.centerY ]
-                )
-        }
+        (Input.button
+            [ Element.centerX
+            , Element.alignBottom
+            , Element.padding <| 3 * UI.spacing
+            , Element.htmlAttribute <| HA.style "outline" "none"
+            ]
+            { onPress = Just (SetJoined False)
+            , label =
+                Element.el
+                    [ Background.color UI.red
+                    , Element.htmlAttribute <| HA.style "outline" "none"
+                    , Element.width <| Element.px UI.leaveButtonSize
+                    , Element.height <| Element.px UI.leaveButtonSize
+                    , Border.rounded <| UI.leaveButtonSize // 2
+                    , Border.shadow
+                        { offset = ( 0, 0 )
+                        , size = 0
+                        , blur = UI.joinButtonBlur
+                        , color = UI.black
+                        }
+                    , Font.color UI.white
+                    ]
+                    (Icon.phoneOff
+                        |> Icon.withSize (toFloat UI.leaveButtonSize / 2)
+                        |> Icon.toHtml []
+                        |> Element.html
+                        |> Element.el [ Element.centerX, Element.centerY ]
+                    )
+            }
+        )
