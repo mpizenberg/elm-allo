@@ -1,18 +1,18 @@
-const http = require("https");
+const http = require("http");
 const fs = require("fs");
 const express = require("express");
 const WebSocket = require("ws");
 
 const PORT = process.env.PORT || 8443;
-const credentials = {
-  key: fs.readFileSync("server.pem"),
-  cert: fs.readFileSync("server.pem"),
-};
+// const credentials = {
+//   key: fs.readFileSync("server.pem"),
+//   cert: fs.readFileSync("server.pem"),
+// };
 
 const app = express();
 app.use(express.static("public"));
 
-const httpServer = http.createServer(credentials, app);
+const httpServer = http.createServer(app);
 const wss = new WebSocket.Server({ server: httpServer });
 const peersSocks = new Map();
 const peersIds = new Map();
