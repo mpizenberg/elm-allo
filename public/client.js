@@ -47,13 +47,11 @@ function initSignalingAndPC(newStreamPort, remoteDisconnectedPort) {
   };
 }
 
-// JOIN ##############################################################
+// JOIN and LEAVE ####################################################
 
 function joinCall() {
   signalingSocket.join();
 }
-
-// LEAVE #############################################################
 
 function leaveCall() {
   signalingSocket.leave();
@@ -63,14 +61,12 @@ function leaveCall() {
   pcs.clear();
 }
 
-// MUTE/UNMUTE #######################################################
+// MIC and CAMERA ####################################################
 
 function mute(micOn) {
   let audio_track = local_stream.getAudioTracks()[0];
   audio_track.enabled = micOn;
 }
-
-// VIDEO HIDE/SHOW ###################################################
 
 function hide(camOn) {
   let video_track = local_stream.getVideoTracks()[0];
