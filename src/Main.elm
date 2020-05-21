@@ -6,7 +6,6 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Element.Keyed as Keyed
 import FeatherIcons as Icon
 import Html exposing (Html)
 import Html.Attributes as HA
@@ -18,9 +17,6 @@ import UI
 
 
 port resize : ({ width : Float, height : Float } -> msg) -> Sub msg
-
-
-port hideShow : Bool -> Cmd msg
 
 
 port requestFullscreen : () -> Cmd msg
@@ -72,7 +68,9 @@ main =
 
 
 type alias Flags =
-    { width : Float, height : Float }
+    { width : Float
+    , height : Float
+    }
 
 
 type alias Model =
@@ -82,7 +80,6 @@ type alias Model =
     , cam : Bool
     , joined : Bool
     , device : Element.Device
-    , nbPeers : Int
     , remotePeers : Set Int
     }
 
@@ -92,8 +89,6 @@ type Msg
     | SetMic Bool
     | SetCam Bool
     | SetJoined Bool
-    | NewPeer
-    | LoosePeer
       -- WebRTC messages
     | NewStream { id : Int, stream : Value }
     | RemoteDisconnected Int
@@ -109,7 +104,6 @@ init { width, height } =
       , device =
             Element.classifyDevice
                 { width = round width, height = round height }
-      , nbPeers = 0
       , remotePeers = Set.empty
       }
     , readyForLocalStream "localVideo"
@@ -149,16 +143,6 @@ update msg model =
                 Cmd.batch [ exitFullscreen (), leaveCall () ]
             )
 
-        NewPeer ->
-            ( { model | nbPeers = model.nbPeers + 1 }
-            , Cmd.none
-            )
-
-        LoosePeer ->
-            ( { model | nbPeers = max 0 (model.nbPeers - 1) }
-            , Cmd.none
-            )
-
         -- WebRTC messages
         NewStream { id, stream } ->
             ( { model | remotePeers = Set.insert id model.remotePeers }
@@ -172,9 +156,11 @@ update msg model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.batch
         [ resize Resize
+
+        -- WebRTC incomming ports
         , newStream NewStream
         , remoteDisconnected RemoteDisconnected
         ]
@@ -210,13 +196,9 @@ layout model =
         ]
         [ Element.row [ Element.padding UI.spacing, Element.width Element.fill ]
             [ filler
-
-            -- , Input.button [] { onPress = Just LoosePeer, label = Element.text "--" }
             , micControl model.device model.mic
             , filler
             , camControl model.device model.cam
-
-            -- , Input.button [] { onPress = Just NewPeer, label = Element.text "++" }
             , Element.text <| String.fromInt <| Set.size model.remotePeers
             , filler
             ]
