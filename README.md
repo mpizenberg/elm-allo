@@ -12,6 +12,16 @@ npm install
 npm start
 ```
 
+## Heroku setup
+
+```shell
+git clone https://github.com/mpizenberg/elm-allo.git
+cd elm-allo
+heroku login
+heroku create
+git push heroku master
+```
+
 ## Nginx Reverse Proxy Configuration
 
 ```nginx
