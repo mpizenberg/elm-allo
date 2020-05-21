@@ -8,12 +8,6 @@ activatePorts = (app, containerSize) => {
     app.ports.resize.send(containerSize())
   );
 
-  // Hide / Show video
-  // app.ports.hideShow.subscribe((camOn) => {
-  //   const localVideo = document.getElementById("localVideo");
-  //   camOn ? localVideo.play() : localVideo.pause();
-  // });
-
   // Fullscreen
   fscreen = Fscreen();
   app.ports.requestFullscreen.subscribe(() =>
@@ -33,6 +27,7 @@ activatePorts = (app, containerSize) => {
   });
 
   // Update the srcObject of a video with a stream
+  // Wait one frame to give time to the VDOM to create the video object
   app.ports.updateStream.subscribe(({ id, stream }) => {
     requestAnimationFrame(() => {
       console.log("updateStream", id);
