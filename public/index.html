@@ -6,8 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<script src="adapter.js"></script>
 	<script src="fscreen.js"></script>
-	<script src="WebrtcHighLevelApi.js"></script>
-	<script src="client.js"></script>
+	<script src="WebRTCClient.js"></script>
 	<script src="ports.js"></script>
 	<script src="Main.js"></script>
 </head>
@@ -31,7 +30,7 @@
 		});
 
 		// Activate the app ports
-		activatePorts(app, layoutViewportSize)
+		activatePorts(app, layoutViewportSize, WebRTCClient)
 	</script>
 </body>
 </html>
