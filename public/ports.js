@@ -10,10 +10,14 @@ activatePorts = (app, containerSize, WebRTCClient) => {
 
   // Fullscreen
   fscreen = Fscreen();
-  app.ports.requestFullscreen.subscribe(() =>
-    fscreen.requestFullscreen(document.documentElement)
-  );
-  app.ports.exitFullscreen.subscribe(() => fscreen.exitFullscreen());
+  app.ports.requestFullscreen.subscribe(() => {
+    if (fscreen.fullscreenElement != null) return;
+    fscreen.requestFullscreen(document.documentElement);
+  });
+  app.ports.exitFullscreen.subscribe(() => {
+    if (fscreen.fullscreenElement == null) return;
+    fscreen.exitFullscreen();
+  });
 
   // WebRTC
   app.ports.readyForLocalStream.subscribe(async (localVideoId) => {
