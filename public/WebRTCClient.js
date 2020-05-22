@@ -167,7 +167,7 @@ async function WebRTCClient(config) {
 //
 //   let { join, leave } = await SignalingSocket({
 //     socketAddress,
-//     onRemotePeerConnected: (channel, polite) => { ... },
+//     onRemotePeerConnected: (me, channel, polite) => { ... },
 //     onRemotePeerDisconnected: (remotePeerId) => { ... },
 //   });
 async function SignalingSocket({
@@ -200,7 +200,7 @@ async function SignalingSocket({
     } else if (msg.msgType == "greet") {
       // A peer just connected with us.
       const chan = addChannel(msg.remotePeerId);
-      onRemotePeerConnected(chan, msg.polite);
+      onRemotePeerConnected(msg.me, chan, msg.polite);
     } else if (msg.msgType == "left") {
       // A peer just disconnected.
       channels.delete(msg.remotePeerId);
