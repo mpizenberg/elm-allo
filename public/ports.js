@@ -52,6 +52,7 @@ activatePorts = (app, containerSize, WebRTCClient) => {
   app.ports.videoReadyForStream.subscribe(({ id, stream }) => {
     requestAnimationFrame(() => {
       const video = document.getElementById(id);
+      if (video.srcObject) return;
       video.srcObject = stream;
     });
   });
