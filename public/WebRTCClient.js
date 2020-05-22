@@ -249,6 +249,7 @@ async function SignalingSocket({
   // Prevent time out with regular ping-pong exchanges.
   function ping(ms) {
     setTimeout(() => {
+      if (socket.readyState != 1) return;
       socket.send(JSON.stringify("ping"));
       ping(ms);
     }, ms);
