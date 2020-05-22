@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const express = require("express");
 const WebSocket = require("ws");
+const { ExpressPeerServer } = require("peer");
 
 const PORT = process.env.PORT || 8443;
 // const credentials = {
@@ -13,6 +14,12 @@ const app = express();
 app.use(express.static("public"));
 
 const httpServer = http.createServer(app);
+const peerServer = ExpressPeerServer(httpServer, {
+  debug: true,
+  path: "/",
+});
+app.use("/peerjs", peerServer);
+
 const wss = new WebSocket.Server({ server: httpServer });
 const peersSocks = new Map();
 const peersIds = new Map();
