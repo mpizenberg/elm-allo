@@ -32,10 +32,10 @@ port exitFullscreen : () -> Cmd msg
 port readyForLocalStream : String -> Cmd msg
 
 
-port newStream : ({ id : Int, stream : Value } -> msg) -> Sub msg
+port updatedStream : ({ id : Int, stream : Value } -> msg) -> Sub msg
 
 
-port updateStream : { id : Int, stream : Value } -> Cmd msg
+port videoReadyForStream : { id : Int, stream : Value } -> Cmd msg
 
 
 port remoteDisconnected : (Int -> msg) -> Sub msg
@@ -90,7 +90,7 @@ type Msg
     | SetCam Bool
     | SetJoined Bool
       -- WebRTC messages
-    | NewStream { id : Int, stream : Value }
+    | UpdatedStream { id : Int, stream : Value }
     | RemoteDisconnected Int
 
 
@@ -144,9 +144,9 @@ update msg model =
             )
 
         -- WebRTC messages
-        NewStream { id, stream } ->
+        UpdatedStream { id, stream } ->
             ( { model | remotePeers = Set.insert id model.remotePeers }
-            , updateStream { id = id, stream = stream }
+            , videoReadyForStream { id = id, stream = stream }
             )
 
         RemoteDisconnected id ->
@@ -161,7 +161,7 @@ subscriptions _ =
         [ resize Resize
 
         -- WebRTC incomming ports
-        , newStream NewStream
+        , updatedStream UpdatedStream
         , remoteDisconnected RemoteDisconnected
         ]
 
