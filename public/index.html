@@ -7,6 +7,7 @@
 	<script src="adapter.js"></script>
 	<script src="fscreen.js"></script>
 	<script src="WebRTCClient.js"></script>
+	<script src="https://unpkg.com/peerjs@1.2.0/dist/peerjs.min.js"></script>
 	<script src="ports.js"></script>
 	<script src="Main.js"></script>
 </head>
@@ -30,7 +31,8 @@
 		});
 
 		// Activate the app ports
-		activatePorts(app, layoutViewportSize, WebRTCClient)
+		// activatePorts(app, layoutViewportSize, WebRTCClient)
+		activatePorts(app, layoutViewportSize, SignalingSocket, Peer)
 	</script>
 </body>
 </html>
