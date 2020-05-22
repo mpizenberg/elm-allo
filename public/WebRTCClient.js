@@ -283,6 +283,13 @@ async function WebRTCClient(config) {
       track.onunmute = () => onRemoteTrack(streams);
     };
 
+    // Below is the "perfect negotiation" logic.
+    // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
+
+    // Send any ice candidates to the other peer
+    pc.onicecandidate = ({ candidate }) =>
+      signalingChannel.sendIceCandidate(candidate);
+
     // Handling the negotiationneeded event.
     let makingOffer = false;
     let ignoreOffer = false;
@@ -300,10 +307,6 @@ async function WebRTCClient(config) {
       }
     };
 
-    // Handling an incoming ICE candidate.
-    pc.onicecandidate = ({ candidate }) =>
-      signalingChannel.sendIceCandidate(candidate);
-
     // Handling remote session description update.
     signalingChannel.onRemoteDescription = async (description) => {
       if (description == null) return;
@@ -312,7 +315,16 @@ async function WebRTCClient(config) {
         (makingOffer || pc.signalingState != "stable");
       ignoreOffer = !polite && offerCollision;
       if (ignoreOffer) return;
-      if (offerCollision && pc.signalingState != "stable") {
+      // When you call setRemoteDescription(),
+      // the ICE agent checks to make sure the RTCPeerConnection
+      // is in either the stable or have-remote-offer signalingState.
+      //
+      // Note: Earlier implementations of WebRTC
+      // would throw an exception if an offer was set
+      // outside a stable or have-remote-offer state.
+      //
+      // if (offerCollision && pc.signalingState == "have-local-offer") {
+      if (offerCollision) {
         await Promise.all([
           pc.setLocalDescription({ type: "rollback" }),
           pc.setRemoteDescription(description),
@@ -324,10 +336,17 @@ async function WebRTCClient(config) {
         await pc.setLocalDescription(await pc.createAnswer());
         signalingChannel.sendDescription(pc.localDescription);
       }
+      // Perfect negotiation with the updated APIs:
+      // await pc.setRemoteDescription(description); // SRD rolls back as needed
+      // if (description.type == "offer") {
+      //   await pc.setLocalDescription();
+      //   signaling.send({ description: pc.localDescription });
+      // }
     };
 
     // Handling remote ICE candidate update.
     signalingChannel.onRemoteIceCandidate = async (candidate) => {
+      if (candidate == null) return;
       try {
         await pc.addIceCandidate(candidate);
       } catch (err) {
