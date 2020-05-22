@@ -36,8 +36,8 @@ wss.on("connection", (ws, req) => {
       console.log("join", idCount);
       // Greet each pair of peers on both sides.
       for (let [id, sock] of peersSocks) {
-        sendJsonMsg(ws, "greet", id, { polite: true });
-        sendJsonMsg(sock, "greet", idCount, { polite: false });
+        sendJsonMsg(ws, "greet", id, { me: idCount, polite: true });
+        sendJsonMsg(sock, "greet", idCount, { me: id, polite: false });
       }
       peersSocks.set(idCount, ws);
       peersIds.set(ws, idCount);
