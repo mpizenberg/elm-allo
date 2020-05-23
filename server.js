@@ -13,14 +13,16 @@ const PORT = process.env.PORT || 8443;
 const app = express();
 app.use(express.static("public"));
 
+// HTTP, WebSocket and PeerJS servers
 const httpServer = http.createServer(app);
+const wss = new WebSocket.Server({ server: httpServer });
 const peerServer = ExpressPeerServer(httpServer, {
   debug: true,
-  path: "/",
+  path: "/allo",
 });
 app.use("/peerjs", peerServer);
 
-const wss = new WebSocket.Server({ server: httpServer });
+// App logic
 const peersSocks = new Map();
 const peersIds = new Map();
 let idCount = 0;
