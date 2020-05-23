@@ -385,3 +385,33 @@ function PeerConnection({
     },
   };
 }
+
+// The three features enabling perfect negotiation are
+//   1. The restartIce() function
+//   2. The ability to call setLocalDescription() with no argument
+//   3. The ability to implicit rollback in setRemoteDescription(offer)
+//
+// As of now (23 may of 2020), the compatibility table for those three features is:
+//
+// restartIce():
+//   Chrome 77, Edge 79, FF 70, Safari NO, Android Chrome 77, Android FF NO
+// setLocalDescription() with no argument:
+//   Chrome 80, Edge 80, FF 75, Safari NO, Android Chrome 80, Android FF NO
+// setRemoteDescription() with implicit rollback:
+//   Chrome NO, Edge NO, FF 75, Safari NO, Android Chrome NO, Android FF NO
+//
+// Only Desktop FF >= 75 is compatible with perfect negotiation.
+// We can detect this with:
+async function compatiblePerfectNegotiation() {
+  try {
+    // Check that setLocalDescription() with no argument is supported
+    // This will rule out the Android version of Firefox
+    let pc = new RTCPeerConnection();
+    await pc.setLocalDescription();
+
+    // Now rule out browsers that are not Firefox
+    return window.mozInnerScreenX != undefined;
+  } catch (e) {
+    return false;
+  }
+}
