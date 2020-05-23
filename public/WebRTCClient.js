@@ -312,6 +312,10 @@ function PeerConnection({
 
   // Below is the "perfect negotiation" logic.
   // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
+  //
+  // Unfortunately this can still cause race conditions
+  // so we are not going to use it anyway.
+  // https://stackoverflow.com/questions/61956693/webrtc-perfect-negotiation-issues?noredirect=1#comment109599219_61956693
   function perfectNegotiation(pc, signalingChannel) {
     // Handling the negotiationneeded event.
     let makingOffer = false;
@@ -319,9 +323,7 @@ function PeerConnection({
     pc.onnegotiationneeded = async () => {
       try {
         makingOffer = true;
-        const offer = await pc.createOffer();
-        if (pc.signalingState != "stable") return;
-        await pc.setLocalDescription(offer);
+        await pc.setLocalDescription();
         signalingChannel.sendDescription(pc.localDescription);
       } catch (err) {
         console.error("ONN", err);
@@ -338,33 +340,11 @@ function PeerConnection({
         (makingOffer || pc.signalingState != "stable");
       ignoreOffer = !polite && offerCollision;
       if (ignoreOffer) return;
-      // When you call setRemoteDescription(),
-      // the ICE agent checks to make sure the RTCPeerConnection
-      // is in either the stable or have-remote-offer signalingState.
-      //
-      // Note: Earlier implementations of WebRTC
-      // would throw an exception if an offer was set
-      // outside a stable or have-remote-offer state.
-      //
-      // if (offerCollision && pc.signalingState == "have-local-offer") {
-      if (offerCollision) {
-        await Promise.all([
-          pc.setLocalDescription({ type: "rollback" }),
-          pc.setRemoteDescription(description),
-        ]);
-      } else {
-        await pc.setRemoteDescription(description);
-      }
+      await pc.setRemoteDescription(description);
       if (description.type == "offer") {
-        await pc.setLocalDescription(await pc.createAnswer());
+        await pc.setLocalDescription();
         signalingChannel.sendDescription(pc.localDescription);
       }
-      // Perfect negotiation with the updated APIs:
-      // await pc.setRemoteDescription(description); // SRD rolls back as needed
-      // if (description.type == "offer") {
-      //   await pc.setLocalDescription();
-      //   signaling.send({ description: pc.localDescription });
-      // }
     };
 
     // ICE candidate negotiation.
@@ -379,7 +359,7 @@ function PeerConnection({
       try {
         await pc.addIceCandidate(candidate);
       } catch (err) {
-        if (!ignoreOffer) throw err;
+        if (!ignoreOffer) console.error(err);
       }
     };
   }
