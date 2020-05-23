@@ -404,10 +404,14 @@ function PeerConnection({
   };
 }
 
-// The three features enabling perfect negotiation are
+// The four features enabling perfect negotiation are
+// detailed in this discussions
+// https://groups.google.com/a/chromium.org/forum/#!topic/blink-dev/OqPfCpC5RYU
+// They are:
 //   1. The restartIce() function
 //   2. The ability to call setLocalDescription() with no argument
 //   3. The ability to implicit rollback in setRemoteDescription(offer)
+//   4. Stopping and stopped transceiviers
 //
 // As of now (23 may of 2020), the compatibility table for those three features is:
 //
@@ -422,12 +426,14 @@ function PeerConnection({
 // We can detect this with:
 async function compatiblePerfectNegotiation() {
   try {
-    // Check that setLocalDescription() with no argument is supported
-    // This will rule out the Android version of Firefox
+    // Check that setLocalDescription() with no argument is supported.
+    // This will rule out the Android version of Firefox.
     let pc = new RTCPeerConnection();
     await pc.setLocalDescription();
 
-    // Now rule out browsers that are not Firefox
+    // Now rule out browsers that are not Firefox.
+    // A better way would be to test for the implicit rollback
+    // capability of setRemoteDescription() but I don't know how ...
     return window.mozInnerScreenX != undefined;
   } catch (e) {
     return false;
