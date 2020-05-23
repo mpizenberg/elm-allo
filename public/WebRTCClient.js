@@ -111,7 +111,7 @@ async function WebRTCClient(config) {
       pcs.set(chan.remotePeerId, pc);
 
       // Send our local stream to the peer connection.
-      pc.setLocalStream(localStream);
+      pc.startNegotiation(localStream);
     },
 
     // Callback for each remote peer disconnection.
@@ -285,7 +285,7 @@ async function SignalingSocket({
 
 // Create a peer connection with a dedicated signaling channel.
 //
-//   let { setLocalStream, close } = PeerConnection({
+//   let { startNegotiation, close } = PeerConnection({
 //     rtcConfig,
 //     signalingChannel,
 //     polite,
@@ -305,10 +305,71 @@ function PeerConnection({
     track.onunmute = () => onRemoteTrack(streams);
   };
 
-  // SDP and ICE candidate negotiation
-  perfectNegotiation(pc, signalingChannel);
-
   // --------------- Private helper functions of PeerConnection
+
+  // SDP and ICE candidate negotiation
+  function startNegotiation(localStream) {
+    // if (bothPerfectNegotiation) {
+    if (false) {
+      perfectNegotiation(pc, signalingChannel);
+      setLocalStream(pc, localStream);
+    } else {
+      simpleNegotiation(pc, signalingChannel, localStream);
+      // The impolite peer is the caller.
+      if (!polite) setLocalStream(pc, localStream);
+    }
+  }
+
+  // Add tracks of local stream in the peer connection.
+  // This will trigger a negotiationneeded event and start negotiations.
+  function setLocalStream(pc, localStream) {
+    for (const track of localStream.getTracks()) {
+      pc.addTrack(track, localStream);
+    }
+  }
+
+  // Simple peer-to-peer negotiation.
+  // https://w3c.github.io/webrtc-pc/#simple-peer-to-peer-example
+  function simpleNegotiation(pc, signalingChannel, localStream) {
+    // let the "negotiationneeded" event trigger offer generation
+    pc.onnegotiationneeded = async () => {
+      try {
+        await pc.setLocalDescription(await pc.createOffer());
+        signalingChannel.sendDescription(pc.localDescription);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    // Handling remote session description update.
+    signalingChannel.onRemoteDescription = async (description) => {
+      if (description == null) return;
+      if (description.type == "offer") {
+        await pc.setRemoteDescription(description);
+        setLocalStream(pc, localStream);
+        await pc.setLocalDescription(await pc.createAnswer());
+        signalingChannel.sendDescription(pc.localDescription);
+      } else if (description.type == "answer") {
+        await pc.setRemoteDescription(description);
+      } else {
+        console.log("Unsupported SDP type. Your code may differ here.");
+      }
+    };
+
+    // Send any ICE candidates to the other peer
+    pc.onicecandidate = ({ candidate }) =>
+      signalingChannel.sendIceCandidate(candidate);
+
+    // Handling remote ICE candidate update.
+    signalingChannel.onRemoteIceCandidate = async (candidate) => {
+      if (candidate == null) return;
+      try {
+        await pc.addIceCandidate(candidate);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+  }
 
   // Below is the "perfect negotiation" logic.
   // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
@@ -366,15 +427,11 @@ function PeerConnection({
 
   // PUBLIC API of PeerConnection ##################################
   //
-  // { setLocalStream, close } = PeerConnection(...);
+  // { startNegotiation, close } = PeerConnection(...);
 
   return {
-    // Set the local stream to the given one.
-    setLocalStream: (localStream) => {
-      for (const track of localStream.getTracks()) {
-        pc.addTrack(track, localStream);
-      }
-    },
+    // Start the negotiation process.
+    startNegotiation: startNegotiation,
     // Close the connection with the peer.
     close: () => {
       pc.close();
