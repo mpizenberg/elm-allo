@@ -290,81 +290,89 @@ function PeerConnection({
   // Init the RTCPeerConnection.
   let pc = new RTCPeerConnection(rtcConfig);
 
-  // Notify the updated streams when a track is received.
+  // Notify when a track is received.
   pc.ontrack = ({ track, streams }) => {
     track.onunmute = () => onRemoteTrack(streams);
   };
 
+  // SDP and ICE candidate negotiation
+  perfectNegotiation(pc, signalingChannel);
+
+  // --------------- Private helper functions of PeerConnection
+
   // Below is the "perfect negotiation" logic.
   // https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
+  function perfectNegotiation(pc, signalingChannel) {
+    // Handling the negotiationneeded event.
+    let makingOffer = false;
+    let ignoreOffer = false;
+    pc.onnegotiationneeded = async () => {
+      try {
+        makingOffer = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState != "stable") return;
+        await pc.setLocalDescription(offer);
+        signalingChannel.sendDescription(pc.localDescription);
+      } catch (err) {
+        console.error("ONN", err);
+      } finally {
+        makingOffer = false;
+      }
+    };
 
-  // Send any ice candidates to the other peer
-  pc.onicecandidate = ({ candidate }) =>
-    signalingChannel.sendIceCandidate(candidate);
+    // Handling remote session description update.
+    signalingChannel.onRemoteDescription = async (description) => {
+      if (description == null) return;
+      const offerCollision =
+        description.type == "offer" &&
+        (makingOffer || pc.signalingState != "stable");
+      ignoreOffer = !polite && offerCollision;
+      if (ignoreOffer) return;
+      // When you call setRemoteDescription(),
+      // the ICE agent checks to make sure the RTCPeerConnection
+      // is in either the stable or have-remote-offer signalingState.
+      //
+      // Note: Earlier implementations of WebRTC
+      // would throw an exception if an offer was set
+      // outside a stable or have-remote-offer state.
+      //
+      // if (offerCollision && pc.signalingState == "have-local-offer") {
+      if (offerCollision) {
+        await Promise.all([
+          pc.setLocalDescription({ type: "rollback" }),
+          pc.setRemoteDescription(description),
+        ]);
+      } else {
+        await pc.setRemoteDescription(description);
+      }
+      if (description.type == "offer") {
+        await pc.setLocalDescription(await pc.createAnswer());
+        signalingChannel.sendDescription(pc.localDescription);
+      }
+      // Perfect negotiation with the updated APIs:
+      // await pc.setRemoteDescription(description); // SRD rolls back as needed
+      // if (description.type == "offer") {
+      //   await pc.setLocalDescription();
+      //   signaling.send({ description: pc.localDescription });
+      // }
+    };
 
-  // Handling the negotiationneeded event.
-  let makingOffer = false;
-  let ignoreOffer = false;
-  pc.onnegotiationneeded = async () => {
-    try {
-      makingOffer = true;
-      const offer = await pc.createOffer();
-      if (pc.signalingState != "stable") return;
-      await pc.setLocalDescription(offer);
-      signalingChannel.sendDescription(pc.localDescription);
-    } catch (err) {
-      console.error("ONN", err);
-    } finally {
-      makingOffer = false;
-    }
-  };
+    // ICE candidate negotiation.
 
-  // Handling remote session description update.
-  signalingChannel.onRemoteDescription = async (description) => {
-    if (description == null) return;
-    const offerCollision =
-      description.type == "offer" &&
-      (makingOffer || pc.signalingState != "stable");
-    ignoreOffer = !polite && offerCollision;
-    if (ignoreOffer) return;
-    // When you call setRemoteDescription(),
-    // the ICE agent checks to make sure the RTCPeerConnection
-    // is in either the stable or have-remote-offer signalingState.
-    //
-    // Note: Earlier implementations of WebRTC
-    // would throw an exception if an offer was set
-    // outside a stable or have-remote-offer state.
-    //
-    // if (offerCollision && pc.signalingState == "have-local-offer") {
-    if (offerCollision) {
-      await Promise.all([
-        pc.setLocalDescription({ type: "rollback" }),
-        pc.setRemoteDescription(description),
-      ]);
-    } else {
-      await pc.setRemoteDescription(description);
-    }
-    if (description.type == "offer") {
-      await pc.setLocalDescription(await pc.createAnswer());
-      signalingChannel.sendDescription(pc.localDescription);
-    }
-    // Perfect negotiation with the updated APIs:
-    // await pc.setRemoteDescription(description); // SRD rolls back as needed
-    // if (description.type == "offer") {
-    //   await pc.setLocalDescription();
-    //   signaling.send({ description: pc.localDescription });
-    // }
-  };
+    // Send any ICE candidates to the other peer
+    pc.onicecandidate = ({ candidate }) =>
+      signalingChannel.sendIceCandidate(candidate);
 
-  // Handling remote ICE candidate update.
-  signalingChannel.onRemoteIceCandidate = async (candidate) => {
-    if (candidate == null) return;
-    try {
-      await pc.addIceCandidate(candidate);
-    } catch (err) {
-      if (!ignoreOffer) throw err;
-    }
-  };
+    // Handling remote ICE candidate update.
+    signalingChannel.onRemoteIceCandidate = async (candidate) => {
+      if (candidate == null) return;
+      try {
+        await pc.addIceCandidate(candidate);
+      } catch (err) {
+        if (!ignoreOffer) throw err;
+      }
+    };
+  }
 
   // PUBLIC API of PeerConnection ##################################
   //
