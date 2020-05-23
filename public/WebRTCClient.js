@@ -128,6 +128,16 @@ async function WebRTCClient(config) {
 
   // JOIN and LEAVE ##################################################
 
+  // Code executed when joining the call.
+  async function join() {
+    const perfectNegotiationOk = await compatiblePerfectNegotiation();
+    console.log(
+      "Browser compatible with perfect negotiation:",
+      perfectNegotiationOk
+    );
+    signalingSocket.join();
+  }
+
   // Cleaning code when leaving the call.
   function leave() {
     // Warn the other peers that we are leaving.
@@ -156,7 +166,7 @@ async function WebRTCClient(config) {
 
   return {
     localStream,
-    join: signalingSocket.join,
+    join,
     leave,
     setMic,
     setCam,
