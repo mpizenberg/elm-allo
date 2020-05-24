@@ -11,6 +11,7 @@
 //   onRemoteConnected: (id) => { ... },
 //   onRemoteDisconnected: (id) => { ... },
 //   onUpdatedStream: ({ id, stream }) => { ... },
+//   onError: (string) => { ... },
 // });
 //
 // All arguments are optional.
@@ -69,6 +70,10 @@ async function WebRTCClient(config) {
         }
       : config.onUpdatedStream;
 
+  // Default callback on error.
+  let onError =
+    config.onError == undefined ? (str) => console.error(str) : config.onError;
+
   // INIT ############################################################
 
   // Init audio and video streams, merge them in "localStream".
@@ -90,52 +95,75 @@ async function WebRTCClient(config) {
   let pcs = new Map();
 
   // Initialize the signaling socket.
-  let signalingSocket = await SignalingSocket({
-    socketAddress: signalingSocketAddress,
+  let signalingSocket;
+  try {
+    signalingSocket = await SignalingSocket({
+      socketAddress: signalingSocketAddress,
 
-    // Callback for each remote peer connection.
-    onRemotePeerConnected: (chan, polite) => {
-      // Inform caller on defined callback for onRemoteConnected.
-      onRemoteConnected(chan.remotePeerId);
+      // Callback for each remote peer connection.
+      onRemotePeerConnected: (chan, polite) => {
+        try {
+          // Inform caller on defined callback for onRemoteConnected.
+          onRemoteConnected(chan.remotePeerId);
 
-      // Start peer connection.
-      const pc = PeerConnection({
-        rtcConfig: { iceServers },
-        signalingChannel: chan,
-        polite,
-        onRemoteTrack: (streams) => {
-          // Inform caller when a stream is updated.
-          onUpdatedStream({ id: chan.remotePeerId, stream: streams[0] });
-        },
-      });
-      pcs.set(chan.remotePeerId, pc);
+          // Start peer connection.
+          const pc = PeerConnection({
+            rtcConfig: { iceServers },
+            signalingChannel: chan,
+            polite,
+            onRemoteTrack: (streams) => {
+              // Inform caller when a stream is updated.
+              onUpdatedStream({ id: chan.remotePeerId, stream: streams[0] });
+            },
+            onError,
+          });
+          pcs.set(chan.remotePeerId, pc);
 
-      // Send our local stream to the peer connection.
-      pc.startNegotiation(localStream);
-    },
+          // Send our local stream to the peer connection.
+          pc.startNegotiation(localStream);
+        } catch (err) {
+          console.error(err);
+          onError("124\n" + err.toString());
+        }
+      },
 
-    // Callback for each remote peer disconnection.
-    onRemotePeerDisconnected: (remotePeerId) => {
-      const pc = pcs.get(remotePeerId);
-      if (pc == undefined) return;
-      pc.close();
-      pcs.delete(remotePeerId);
+      // Callback for each remote peer disconnection.
+      onRemotePeerDisconnected: (remotePeerId) => {
+        try {
+          const pc = pcs.get(remotePeerId);
+          if (pc == undefined) return;
+          pc.close();
+          pcs.delete(remotePeerId);
 
-      // Inform caller that a remote peer disconnected.
-      onRemoteDisconnected(remotePeerId);
-    },
-  });
+          // Inform caller that a remote peer disconnected.
+          onRemoteDisconnected(remotePeerId);
+        } catch (err) {
+          console.error(err);
+          onError("140\n" + err.toString());
+        }
+      },
+      onError,
+    });
+  } catch (err) {
+    console.error(err);
+    onError("146\n" + err.toString());
+  }
 
   // JOIN and LEAVE ##################################################
 
   // Code executed when joining the call.
   async function join() {
-    const perfectNegotiationOk = await compatiblePerfectNegotiation();
-    console.log(
-      "Browser compatible with perfect negotiation:",
-      perfectNegotiationOk
-    );
-    signalingSocket.join();
+    try {
+      const perfectNegotiationOk = await compatiblePerfectNegotiation();
+      console.log(
+        "Browser compatible with perfect negotiation:",
+        perfectNegotiationOk
+      );
+      signalingSocket.join();
+    } catch (err) {
+      console.error(err);
+      onError("162\n" + err.toString());
+    }
   }
 
   // Cleaning code when leaving the call.
@@ -179,6 +207,7 @@ async function WebRTCClient(config) {
 //     socketAddress,
 //     onRemotePeerConnected: (channel, polite) => { ... },
 //     onRemotePeerDisconnected: (remotePeerId) => { ... },
+//     onError: (string) => { ... },
 //   });
 async function SignalingSocket({
   socketAddress,
@@ -186,6 +215,7 @@ async function SignalingSocket({
   onRemotePeerConnected,
   // Callback for each remote peer disconnection.
   onRemotePeerDisconnected,
+  onError,
 }) {
   // Create the WebSocket object.
   const socket = new WebSocket(socketAddress);
@@ -193,7 +223,7 @@ async function SignalingSocket({
   // If the signaling socket is closed by the browser or server,
   // it means that something unexpected occured.
   socket.onclose = (event) => {
-    console.error("OOPS, the signaling socket was closed", event);
+    throw "The signaling socket was closed";
     // TODO add a disconnected event
   };
 
@@ -203,26 +233,31 @@ async function SignalingSocket({
   // Listen to incoming messages and redirect either to
   // the ICE candidate or the description callback.
   socket.onmessage = (jsonMsg) => {
-    const msg = JSON.parse(jsonMsg.data);
-    if (msg == "pong") {
-      // The server "pong" answer to our "ping".
-      console.log("pong");
-    } else if (msg.msgType == "greet") {
-      // A peer just connected with us.
-      const chan = addChannel(msg.remotePeerId);
-      onRemotePeerConnected(chan, msg.polite);
-    } else if (msg.msgType == "left") {
-      // A peer just disconnected.
-      channels.delete(msg.remotePeerId);
-      onRemotePeerDisconnected(msg.remotePeerId);
-    } else {
-      const chan = channels.get(msg.remotePeerId);
-      if (chan == undefined) return;
-      if (msg.msgType == "sessionDescription") {
-        chan.onRemoteDescription(msg.data);
-      } else if (msg.msgType == "iceCandidate") {
-        chan.onRemoteIceCandidate(msg.data);
+    try {
+      const msg = JSON.parse(jsonMsg.data);
+      if (msg == "pong") {
+        // The server "pong" answer to our "ping".
+        console.log("pong");
+      } else if (msg.msgType == "greet") {
+        // A peer just connected with us.
+        const chan = addChannel(msg.remotePeerId);
+        onRemotePeerConnected(chan, msg.polite);
+      } else if (msg.msgType == "left") {
+        // A peer just disconnected.
+        channels.delete(msg.remotePeerId);
+        onRemotePeerDisconnected(msg.remotePeerId);
+      } else {
+        const chan = channels.get(msg.remotePeerId);
+        if (chan == undefined) return;
+        if (msg.msgType == "sessionDescription") {
+          chan.onRemoteDescription(msg.data);
+        } else if (msg.msgType == "iceCandidate") {
+          chan.onRemoteIceCandidate(msg.data);
+        }
       }
+    } catch (err) {
+      console.error(err);
+      onError("257, msg.msgType: " + msg.msgType + "\n" + err.toString());
     }
   };
 
@@ -252,8 +287,13 @@ async function SignalingSocket({
 
   // Helper function to send a JSON message to the signaling socket.
   function sendJsonMsg(msgType, remotePeerId, extra = {}) {
-    const msg = Object.assign({ msgType, remotePeerId }, extra);
-    socket.send(JSON.stringify(msg));
+    try {
+      const msg = Object.assign({ msgType, remotePeerId }, extra);
+      socket.send(JSON.stringify(msg));
+    } catch (err) {
+      console.error(err);
+      onError("292\n" + err.toString());
+    }
   }
 
   // Prevent time out with regular ping-pong exchanges.
@@ -279,7 +319,11 @@ async function SignalingSocket({
         leave: () => socket.send(JSON.stringify({ msgType: "leave" })),
       });
     };
-    socket.onerror = reject;
+    socket.onerror = (err) => {
+      console.error(err);
+      onError("321\n" + err.toString());
+      reject(err);
+    };
   });
 }
 
@@ -290,19 +334,26 @@ async function SignalingSocket({
 //     signalingChannel,
 //     polite,
 //     onRemoteTrack: (streams) => { ... },
+//     onError: (string) => { ... },
 //   });
 function PeerConnection({
   rtcConfig,
   signalingChannel,
   polite,
   onRemoteTrack,
+  onError,
 }) {
   // Init the RTCPeerConnection.
   let pc = new RTCPeerConnection(rtcConfig);
 
   // Notify when a track is received.
   pc.ontrack = ({ track, streams }) => {
-    track.onunmute = () => onRemoteTrack(streams);
+    try {
+      track.onunmute = () => onRemoteTrack(streams);
+    } catch (err) {
+      console.error(err);
+      onError("352\n" + err.toString());
+    }
   };
 
   // --------------- Private helper functions of PeerConnection
@@ -338,27 +389,39 @@ function PeerConnection({
         signalingChannel.sendDescription(pc.localDescription);
       } catch (err) {
         console.error(err);
+        onError("389\n" + err.toString());
       }
     };
 
     // Handling remote session description update.
     signalingChannel.onRemoteDescription = async (description) => {
       if (description == null) return;
-      if (description.type == "offer") {
-        await pc.setRemoteDescription(description);
-        setLocalStream(pc, localStream);
-        await pc.setLocalDescription(await pc.createAnswer());
-        signalingChannel.sendDescription(pc.localDescription);
-      } else if (description.type == "answer") {
-        await pc.setRemoteDescription(description);
-      } else {
-        console.log("Unsupported SDP type. Your code may differ here.");
+      try {
+        if (description.type == "offer") {
+          await pc.setRemoteDescription(description);
+          setLocalStream(pc, localStream);
+          await pc.setLocalDescription(await pc.createAnswer());
+          signalingChannel.sendDescription(pc.localDescription);
+        } else if (description.type == "answer") {
+          await pc.setRemoteDescription(description);
+        } else {
+          console.log("Unsupported SDP type. Your code may differ here.");
+        }
+      } catch (err) {
+        console.error(err);
+        onError("409, type: " + description.type + "\n" + err.toString());
       }
     };
 
     // Send any ICE candidates to the other peer
-    pc.onicecandidate = ({ candidate }) =>
-      signalingChannel.sendIceCandidate(candidate);
+    pc.onicecandidate = ({ candidate }) => {
+      try {
+        signalingChannel.sendIceCandidate(candidate);
+      } catch (err) {
+        console.error(err);
+        onError("419\n" + err.toString());
+      }
+    };
 
     // Handling remote ICE candidate update.
     signalingChannel.onRemoteIceCandidate = async (candidate) => {
@@ -367,6 +430,7 @@ function PeerConnection({
         await pc.addIceCandidate(candidate);
       } catch (err) {
         console.error(err);
+        onError("430\n" + err.toString());
       }
     };
   }
@@ -387,7 +451,7 @@ function PeerConnection({
         await pc.setLocalDescription();
         signalingChannel.sendDescription(pc.localDescription);
       } catch (err) {
-        console.error("ONN", err);
+        throw err;
       } finally {
         makingOffer = false;
       }
@@ -420,7 +484,7 @@ function PeerConnection({
       try {
         await pc.addIceCandidate(candidate);
       } catch (err) {
-        if (!ignoreOffer) console.error(err);
+        if (!ignoreOffer) throw err;
       }
     };
   }

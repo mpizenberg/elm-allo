@@ -3,6 +3,20 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 activatePorts = (app, containerSize, WebRTCClient) => {
+  // Catch all uncaught errors
+  window.onerror = (msg, url, lineNumber, colNumber, err) => {
+    console.error(err);
+    app.ports.error.send(
+      "Uncaught error file " + url + " line " + lineNumber + "\n" + msg
+    );
+    return false;
+  };
+
+  // Also exceptions happening in promises.
+  window.onunhandledrejection = (e) => {
+    app.ports.error.send("Unhandled promise rejection:\n" + e.reason);
+  };
+
   // Inform the Elm app when its container div gets resized.
   window.addEventListener("resize", () =>
     app.ports.resize.send(containerSize())
@@ -33,6 +47,7 @@ activatePorts = (app, containerSize, WebRTCClient) => {
         // onRemoteConnected: (id) => { ... },
         onRemoteDisconnected: app.ports.remoteDisconnected.send,
         onUpdatedStream: app.ports.updatedStream.send,
+        onError: app.ports.error.send,
       });
 
       // Set the local stream to the associated video.
@@ -48,6 +63,7 @@ activatePorts = (app, containerSize, WebRTCClient) => {
       app.ports.hide.subscribe(setCam);
     } catch (error) {
       console.error(error);
+      app.ports.error.send("ports.js l:65\n" + error.toString());
     }
   });
 

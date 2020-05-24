@@ -66,6 +66,11 @@ red =
     Element.rgb255 203 60 60
 
 
+darkRed : Element.Color
+darkRed =
+    Element.rgb255 70 20 20
+
+
 white : Element.Color
 white =
     Element.rgb255 255 255 255

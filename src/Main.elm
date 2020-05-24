@@ -1,9 +1,11 @@
 port module Main exposing (main)
 
 import Browser
+import Dict exposing (Dict)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Events
 import Element.Font as Font
 import Element.Input as Input
 import FeatherIcons as Icon
@@ -53,6 +55,9 @@ port mute : Bool -> Cmd msg
 port hide : Bool -> Cmd msg
 
 
+port error : (String -> msg) -> Sub msg
+
+
 
 -- Main
 
@@ -81,6 +86,8 @@ type alias Model =
     , joined : Bool
     , device : Element.Device
     , remotePeers : Set Int
+    , errors : Dict String Int
+    , showErrors : Bool
     }
 
 
@@ -92,6 +99,8 @@ type Msg
       -- WebRTC messages
     | UpdatedStream { id : Int, stream : Value }
     | RemoteDisconnected Int
+    | Error String
+    | ToggleShowErrors
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -105,6 +114,8 @@ init { width, height } =
             Element.classifyDevice
                 { width = round width, height = round height }
       , remotePeers = Set.empty
+      , errors = Dict.empty
+      , showErrors = False
       }
     , readyForLocalStream "localVideo"
     )
@@ -154,6 +165,17 @@ update msg model =
             , Cmd.none
             )
 
+        -- JavaScript error
+        Error err ->
+            ( { model | errors = Dict.insert err 1 model.errors }
+            , Cmd.none
+            )
+
+        ToggleShowErrors ->
+            ( { model | showErrors = not model.showErrors }
+            , Cmd.none
+            )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -163,6 +185,9 @@ subscriptions _ =
         -- WebRTC incomming ports
         , updatedStream UpdatedStream
         , remoteDisconnected RemoteDisconnected
+
+        -- JavaScript errors
+        , error Error
         ]
 
 
@@ -193,6 +218,7 @@ layout model =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
+        , Element.inFront (displayErrors model.width model.height availableHeight model.showErrors model.errors)
         ]
         [ Element.row [ Element.padding UI.spacing, Element.width Element.fill ]
             [ filler
@@ -201,10 +227,58 @@ layout model =
             , camControl model.device model.cam
             , Element.text <| String.fromInt <| Set.size model.remotePeers
             , filler
+            , showErrorsButton model.device model.showErrors model.errors
             ]
         , Element.html <|
             videoStreams model.width availableHeight model.joined model.remotePeers
         ]
+
+
+displayErrors : Float -> Float -> Float -> Bool -> Dict String Int -> Element msg
+displayErrors totalWidth totalHeight availableHeight showErrors errors =
+    if not showErrors then
+        Element.none
+
+    else
+        Element.column
+            [ Element.clip
+            , Element.scrollbars
+            , Element.centerX
+            , Element.width (Element.maximum (floor totalWidth) Element.shrink)
+            , Element.moveDown (totalHeight - availableHeight)
+            , Element.height (Element.maximum (floor availableHeight) Element.shrink)
+            , Element.padding 20
+            , Element.spacing 40
+            , Background.color UI.darkRed
+            , Element.htmlAttribute (HA.style "z-index" "1000")
+            , Font.size 8
+            ]
+            (List.map preformatted (Dict.keys errors))
+
+
+preformatted : String -> Element msg
+preformatted str =
+    Element.html (Html.pre [] [ Html.text str ])
+
+
+showErrorsButton : Device -> Bool -> Dict String Int -> Element Msg
+showErrorsButton device showErrors errors =
+    if Dict.isEmpty errors then
+        Element.none
+
+    else if showErrors then
+        Icon.x
+            |> Icon.withSize (UI.controlButtonSize device.class)
+            |> Icon.toHtml []
+            |> Element.html
+            |> Element.el [ Element.Events.onClick ToggleShowErrors, Element.pointer ]
+
+    else
+        Icon.alertTriangle
+            |> Icon.withSize (UI.controlButtonSize device.class)
+            |> Icon.toHtml []
+            |> Element.html
+            |> Element.el [ Element.Events.onClick ToggleShowErrors, Element.pointer ]
 
 
 micControl : Device -> Bool -> Element Msg
