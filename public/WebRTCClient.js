@@ -430,7 +430,16 @@ function PeerConnection({
         await pc.addIceCandidate(candidate);
       } catch (err) {
         console.error(err);
-        onError("430\n" + err.toString());
+        onError(
+          "430: " +
+            err.toString() +
+            "\n\nWith detailed JSON err:\n" +
+            JSON.stringify(err, null, "    ") +
+            "\n\nHappening with the following ICE candidate:\n" +
+            JSON.stringify(candidate, null, "    ") +
+            "\n\nThe complete stack trace below:\n" +
+            err.stack
+        );
       }
     };
   }
