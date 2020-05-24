@@ -424,10 +424,18 @@ function PeerConnection({
     };
 
     // Handling remote ICE candidate update.
-    signalingChannel.onRemoteIceCandidate = async (candidate) => {
-      if (candidate == null) return;
+    signalingChannel.onRemoteIceCandidate = async (iceCandidate) => {
+      if (iceCandidate == null) return;
+      // Try a fix inspired by PeerJS library:
+      // https://github.com/peers/peerjs/blob/72e7c17/lib/negotiator.ts#L308
       try {
-        await pc.addIceCandidate(candidate);
+        await pc.addIceCandidate(
+          new RTCIceCandidate({
+            sdpMid: iceCandidate.sdpMid,
+            sdpMLineIndex: iceCandidate.sdpMLineIndex,
+            candidate: iceCandidate.candidate,
+          })
+        );
       } catch (err) {
         console.error(err);
         onError(
@@ -436,7 +444,7 @@ function PeerConnection({
             "\n\nWith detailed JSON err:\n" +
             JSON.stringify(err, null, "    ") +
             "\n\nHappening with the following ICE candidate:\n" +
-            JSON.stringify(candidate, null, "    ") +
+            JSON.stringify(iceCandidate, null, "    ") +
             "\n\nThe complete stack trace below:\n" +
             err.stack
         );
