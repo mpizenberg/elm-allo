@@ -25,12 +25,20 @@ activatePorts = (app, containerSize, WebRTCClient) => {
   // Fullscreen
   fscreen = Fscreen();
   app.ports.requestFullscreen.subscribe(() => {
-    if (fscreen.fullscreenElement != null) return;
-    fscreen.requestFullscreen(document.documentElement);
+    try {
+      if (fscreen.fullscreenElement != null) return;
+      fscreen.requestFullscreen(document.documentElement);
+    } catch (err) {
+      console.error("Fullscreen is not supported");
+    }
   });
   app.ports.exitFullscreen.subscribe(() => {
-    if (fscreen.fullscreenElement == null) return;
-    fscreen.exitFullscreen();
+    try {
+      if (fscreen.fullscreenElement == null) return;
+      fscreen.exitFullscreen();
+    } catch (err) {
+      console.error("Fullscreen is not supported");
+    }
   });
 
   // WebRTC
