@@ -157,7 +157,8 @@ update msg model =
         -- WebRTC messages
         UpdatedStream { id, stream } ->
             ( { model | remotePeers = Set.insert id model.remotePeers }
-            , videoReadyForStream { id = id, stream = stream }
+              -- , videoReadyForStream { id = id, stream = stream }
+            , Cmd.none
             )
 
         RemoteDisconnected id ->
@@ -517,6 +518,7 @@ remoteVideo width height src id =
         , HA.loop True
         , HA.property "muted" (Encode.bool False)
         , HA.attribute "playsinline" "playsinline"
+        , HA.poster "spinner.png"
 
         -- prevent focus outline
         , HA.style "outline" "none"
