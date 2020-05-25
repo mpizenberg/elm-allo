@@ -349,8 +349,9 @@ function PeerConnection({
   // Notify when a track is received.
   pc.ontrack = ({ track, streams }) => {
     try {
-      onError("pc.ontrack");
-      track.onunmute = () => onRemoteTrack(streams);
+      onError("pc.ontrack with muted = " + track.muted);
+      // track.onunmute = () => onRemoteTrack(streams);
+      onRemoteTrack(streams);
     } catch (err) {
       console.error(err);
       onError("352\n" + err.toString());
