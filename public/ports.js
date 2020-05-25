@@ -78,11 +78,11 @@ activatePorts = (app, containerSize, WebRTCClient) => {
 
   // Update the srcObject of a video with a stream.
   // Wait one frame to give time to the VDOM to create the video object.
-  // app.ports.videoReadyForStream.subscribe(({ id, stream }) => {
-  //   requestAnimationFrame(() => {
-  //     const video = document.getElementById(id);
-  //     if (video.srcObject) return;
-  //     video.srcObject = stream;
-  //   });
-  // });
+  app.ports.videoReadyForStream.subscribe(({ id, stream }) => {
+    requestAnimationFrame(() => {
+      const video = document.getElementById(id);
+      if (video.srcObject) return;
+      video.srcObject = stream;
+    });
+  });
 };

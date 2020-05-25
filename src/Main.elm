@@ -160,8 +160,8 @@ update msg model =
                 | remotePeers = Set.insert id model.remotePeers
                 , errors = ("UpdatedStream " ++ String.fromInt id) :: model.errors
               }
-              -- , videoReadyForStream { id = id, stream = stream }
-            , Cmd.none
+            , videoReadyForStream { id = id, stream = stream }
+              -- , Cmd.none
             )
 
         RemoteDisconnected id ->
