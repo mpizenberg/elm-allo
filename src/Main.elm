@@ -499,7 +499,6 @@ gridVideoItem muted src id =
     Html.video
         [ HA.id id
         , HA.autoplay True
-        , HA.loop True
         , HA.property "muted" (Encode.bool muted)
         , HA.attribute "playsinline" "playsinline"
 
@@ -518,8 +517,6 @@ remoteVideo width height src id =
     Html.video
         [ HA.id id
         , HA.autoplay True
-        , HA.loop True
-        , HA.property "muted" (Encode.bool False)
         , HA.attribute "playsinline" "playsinline"
         , HA.poster "spinner.png"
 
@@ -545,7 +542,6 @@ thumbVideo height src id =
     Html.video
         [ HA.id id
         , HA.autoplay True
-        , HA.loop True
         , HA.property "muted" (Encode.bool True)
         , HA.attribute "playsinline" "playsinline"
 
@@ -569,7 +565,6 @@ video src id =
     Html.video
         [ HA.id id
         , HA.autoplay True
-        , HA.loop True
         , HA.property "muted" (Encode.bool True)
         , HA.attribute "playsinline" "playsinline"
 
