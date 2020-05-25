@@ -349,6 +349,7 @@ function PeerConnection({
   // Notify when a track is received.
   pc.ontrack = ({ track, streams }) => {
     try {
+      onError("pc.ontrack");
       track.onunmute = () => onRemoteTrack(streams);
     } catch (err) {
       console.error(err);
@@ -385,6 +386,7 @@ function PeerConnection({
     // let the "negotiationneeded" event trigger offer generation
     pc.onnegotiationneeded = async () => {
       try {
+        onError("pc.onnegotiationneeded");
         await pc.setLocalDescription(await pc.createOffer());
         signalingChannel.sendDescription(pc.localDescription);
       } catch (err) {
@@ -395,6 +397,10 @@ function PeerConnection({
 
     // Handling remote session description update.
     signalingChannel.onRemoteDescription = async (description) => {
+      onError(
+        "onRemoteDescription with description:\n" +
+          JSON.stringify(description, null, "  ")
+      );
       if (description == null) return;
       try {
         if (description.type == "offer") {
@@ -406,6 +412,7 @@ function PeerConnection({
           await pc.setRemoteDescription(description);
         } else {
           console.log("Unsupported SDP type. Your code may differ here.");
+          onError("Unsupported SDP type. Your code may differ here.");
         }
       } catch (err) {
         console.error(err);
@@ -415,6 +422,10 @@ function PeerConnection({
 
     // Send any ICE candidates to the other peer
     pc.onicecandidate = ({ candidate }) => {
+      onError(
+        "pc.onicecandidate with candidate:\n" +
+          JSON.stringify(candidate, null, "  ")
+      );
       try {
         signalingChannel.sendIceCandidate(candidate);
       } catch (err) {
@@ -425,6 +436,10 @@ function PeerConnection({
 
     // Handling remote ICE candidate update.
     signalingChannel.onRemoteIceCandidate = async (iceCandidate) => {
+      onError(
+        "onRemoteIceCandidate with iceCandidate:\n" +
+          JSON.stringify(iceCandidate, null, "  ")
+      );
       if (iceCandidate == null) return;
       // Try a fix inspired by PeerJS library:
       // https://github.com/peers/peerjs/blob/72e7c17/lib/negotiator.ts#L308

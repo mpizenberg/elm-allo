@@ -86,7 +86,7 @@ type alias Model =
     , joined : Bool
     , device : Element.Device
     , remotePeers : Set Int
-    , errors : Dict String Int
+    , errors : List String
     , showErrors : Bool
     }
 
@@ -114,7 +114,7 @@ init { width, height } =
             Element.classifyDevice
                 { width = round width, height = round height }
       , remotePeers = Set.empty
-      , errors = Dict.empty
+      , errors = []
       , showErrors = False
       }
     , readyForLocalStream "localVideo"
@@ -156,7 +156,10 @@ update msg model =
 
         -- WebRTC messages
         UpdatedStream { id, stream } ->
-            ( { model | remotePeers = Set.insert id model.remotePeers }
+            ( { model
+                | remotePeers = Set.insert id model.remotePeers
+                , errors = ("UpdatedStream " ++ String.fromInt id) :: model.errors
+              }
               -- , videoReadyForStream { id = id, stream = stream }
             , Cmd.none
             )
@@ -168,7 +171,7 @@ update msg model =
 
         -- JavaScript error
         Error err ->
-            ( { model | errors = Dict.insert err 1 model.errors }
+            ( { model | errors = err :: model.errors }
             , Cmd.none
             )
 
@@ -235,7 +238,7 @@ layout model =
         ]
 
 
-displayErrors : Float -> Float -> Float -> Bool -> Dict String Int -> Element msg
+displayErrors : Float -> Float -> Float -> Bool -> List String -> Element msg
 displayErrors totalWidth totalHeight availableHeight showErrors errors =
     if not showErrors then
         Element.none
@@ -254,7 +257,7 @@ displayErrors totalWidth totalHeight availableHeight showErrors errors =
             , Element.htmlAttribute (HA.style "z-index" "1000")
             , Font.size 8
             ]
-            (List.map preformatted (Dict.keys errors))
+            (List.map preformatted <| List.reverse errors)
 
 
 preformatted : String -> Element msg
@@ -262,9 +265,9 @@ preformatted str =
     Element.html (Html.pre [] [ Html.text str ])
 
 
-showErrorsButton : Device -> Bool -> Dict String Int -> Element Msg
+showErrorsButton : Device -> Bool -> List String -> Element Msg
 showErrorsButton device showErrors errors =
-    if Dict.isEmpty errors then
+    if List.isEmpty errors then
         Element.none
 
     else if showErrors then

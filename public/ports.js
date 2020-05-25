@@ -52,7 +52,8 @@ activatePorts = (app, containerSize, WebRTCClient) => {
           height: 240,
         },
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-        // onRemoteConnected: (id) => { ... },
+        onRemoteConnected: (id) =>
+          app.ports.error.send("Remote connected: " + id),
         onRemoteDisconnected: app.ports.remoteDisconnected.send,
         onUpdatedStream: app.ports.updatedStream.send,
         onError: app.ports.error.send,
