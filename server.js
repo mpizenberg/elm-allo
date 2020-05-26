@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 8443;
 function forceHTTPS(req, res, next) {
   const isSecure =
     req.secure ||
+    // If behind a proxy, check for the X-Forwarded-Proto header.
     (req.headers["x-forwarded-proto"] || "").substring(0, 5) === "https";
 
   if (isSecure) {
