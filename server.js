@@ -9,7 +9,26 @@ const PORT = process.env.PORT || 8443;
 //   cert: fs.readFileSync("server.pem"),
 // };
 
+function forceHTTPS(req, res, next) {
+  const isSecure =
+    req.secure ||
+    // If behind a proxy, check for the X-Forwarded-Proto header.
+    req.headers["x-forwarded-proto"] === "https";
+
+  if (isSecure) {
+    next();
+    return;
+  }
+
+  if (req.method === "GET" || req.method === "HEAD") {
+    res.redirect(301, "https://" + req.headers.host + req.originalUrl);
+  } else {
+    res.status(403).send("Server requires HTTPS.");
+  }
+}
+
 const app = express();
+app.use(forceHTTPS);
 app.use(express.static("public"));
 
 const httpServer = http.createServer(app);
