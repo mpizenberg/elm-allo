@@ -12,6 +12,7 @@
 //   onRemoteDisconnected: (id) => { ... },
 //   onUpdatedStream: ({ id, stream }) => { ... },
 //   onError: (string) => { ... },
+//   onLog: (string) => { ... },
 // });
 //
 // All arguments are optional.
@@ -74,6 +75,10 @@ async function WebRTCClient(config) {
   let onError =
     config.onError == undefined ? (str) => console.error(str) : config.onError;
 
+  // Default callback on log.
+  let onLog =
+    config.onLog == undefined ? (str) => console.log(str) : config.onLog;
+
   // INIT ############################################################
 
   // Init audio and video streams, merge them in "localStream".
@@ -116,6 +121,7 @@ async function WebRTCClient(config) {
               onUpdatedStream({ id: chan.remotePeerId, stream: streams[0] });
             },
             onError,
+            onLog,
           });
           pcs.set(chan.remotePeerId, pc);
 
@@ -143,6 +149,7 @@ async function WebRTCClient(config) {
         }
       },
       onError,
+      onLog,
     });
   } catch (err) {
     console.error(err);
@@ -208,6 +215,7 @@ async function WebRTCClient(config) {
 //     onRemotePeerConnected: (channel, polite) => { ... },
 //     onRemotePeerDisconnected: (remotePeerId) => { ... },
 //     onError: (string) => { ... },
+//     onLog: (string) => { ... },
 //   });
 async function SignalingSocket({
   socketAddress,
@@ -216,6 +224,7 @@ async function SignalingSocket({
   // Callback for each remote peer disconnection.
   onRemotePeerDisconnected,
   onError,
+  onLog,
 }) {
   // Create the WebSocket object.
   const socket = new WebSocket(socketAddress);
@@ -335,6 +344,7 @@ async function SignalingSocket({
 //     polite,
 //     onRemoteTrack: (streams) => { ... },
 //     onError: (string) => { ... },
+//     onLog: (string) => { ... },
 //   });
 function PeerConnection({
   rtcConfig,
@@ -342,6 +352,7 @@ function PeerConnection({
   polite,
   onRemoteTrack,
   onError,
+  onLog,
 }) {
   // Init the RTCPeerConnection.
   let pc = new RTCPeerConnection(rtcConfig);
@@ -349,7 +360,7 @@ function PeerConnection({
   // Notify when a track is received.
   pc.ontrack = ({ track, streams }) => {
     try {
-      onError("pc.ontrack with muted = " + track.muted);
+      onLog("pc.ontrack with muted = " + track.muted);
       // track.onunmute = () => onRemoteTrack(streams);
       onRemoteTrack(streams);
     } catch (err) {
@@ -387,7 +398,7 @@ function PeerConnection({
     // let the "negotiationneeded" event trigger offer generation
     pc.onnegotiationneeded = async () => {
       try {
-        onError("pc.onnegotiationneeded");
+        onLog("pc.onnegotiationneeded");
         await pc.setLocalDescription(await pc.createOffer());
         signalingChannel.sendDescription(pc.localDescription);
       } catch (err) {
@@ -398,7 +409,7 @@ function PeerConnection({
 
     // Handling remote session description update.
     signalingChannel.onRemoteDescription = async (description) => {
-      onError(
+      onLog(
         "onRemoteDescription with description:\n" +
           JSON.stringify(description, null, "  ")
       );
@@ -412,7 +423,7 @@ function PeerConnection({
         } else if (description.type == "answer") {
           await pc.setRemoteDescription(description);
         } else {
-          console.log("Unsupported SDP type. Your code may differ here.");
+          console.error("Unsupported SDP type. Your code may differ here.");
           onError("Unsupported SDP type. Your code may differ here.");
         }
       } catch (err) {
@@ -423,7 +434,7 @@ function PeerConnection({
 
     // Send any ICE candidates to the other peer
     pc.onicecandidate = ({ candidate }) => {
-      onError(
+      onLog(
         "pc.onicecandidate with candidate:\n" +
           JSON.stringify(candidate, null, "  ")
       );
@@ -437,7 +448,7 @@ function PeerConnection({
 
     // Handling remote ICE candidate update.
     signalingChannel.onRemoteIceCandidate = async (iceCandidate) => {
-      onError(
+      onLog(
         "onRemoteIceCandidate with iceCandidate:\n" +
           JSON.stringify(iceCandidate, null, "  ")
       );

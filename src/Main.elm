@@ -1,7 +1,6 @@
 port module Main exposing (main)
 
 import Browser
-import Dict exposing (Dict)
 import Element exposing (Device, Element)
 import Element.Background as Background
 import Element.Border as Border
@@ -58,6 +57,9 @@ port hide : Bool -> Cmd msg
 port error : (String -> msg) -> Sub msg
 
 
+port log : (String -> msg) -> Sub msg
+
+
 
 -- Main
 
@@ -87,8 +89,15 @@ type alias Model =
     , device : Element.Device
     , remotePeers : Set Int
     , errors : List String
-    , showErrors : Bool
+    , logs : List String
+    , showErrorsOrLogs : ShowErrorsOrLogs
     }
+
+
+type ShowErrorsOrLogs
+    = ShowNone
+    | ShowErrors
+    | ShowLogs
 
 
 type Msg
@@ -100,7 +109,9 @@ type Msg
     | UpdatedStream { id : Int, stream : Value }
     | RemoteDisconnected Int
     | Error String
+    | Log String
     | ToggleShowErrors
+    | ToggleShowLogs
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -115,7 +126,8 @@ init { width, height } =
                 { width = round width, height = round height }
       , remotePeers = Set.empty
       , errors = []
-      , showErrors = False
+      , logs = []
+      , showErrorsOrLogs = ShowNone
       }
     , readyForLocalStream "localVideo"
     )
@@ -158,7 +170,7 @@ update msg model =
         UpdatedStream { id, stream } ->
             ( { model
                 | remotePeers = Set.insert id model.remotePeers
-                , errors = ("UpdatedStream " ++ String.fromInt id) :: model.errors
+                , logs = ("UpdatedStream " ++ String.fromInt id) :: model.logs
               }
             , videoReadyForStream { id = id, stream = stream }
               -- , Cmd.none
@@ -175,8 +187,37 @@ update msg model =
             , Cmd.none
             )
 
+        -- JavaScript log
+        Log logMsg ->
+            ( { model | logs = logMsg :: model.logs }
+            , Cmd.none
+            )
+
         ToggleShowErrors ->
-            ( { model | showErrors = not model.showErrors }
+            let
+                showErrorsOrLogs =
+                    case model.showErrorsOrLogs of
+                        ShowErrors ->
+                            ShowNone
+
+                        _ ->
+                            ShowErrors
+            in
+            ( { model | showErrorsOrLogs = showErrorsOrLogs }
+            , Cmd.none
+            )
+
+        ToggleShowLogs ->
+            let
+                showErrorsOrLogs =
+                    case model.showErrorsOrLogs of
+                        ShowLogs ->
+                            ShowNone
+
+                        _ ->
+                            ShowLogs
+            in
+            ( { model | showErrorsOrLogs = showErrorsOrLogs }
             , Cmd.none
             )
 
@@ -190,8 +231,9 @@ subscriptions _ =
         , updatedStream UpdatedStream
         , remoteDisconnected RemoteDisconnected
 
-        -- JavaScript errors
+        -- JavaScript errors and logs
         , error Error
+        , log Log
         ]
 
 
@@ -222,42 +264,52 @@ layout model =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
-        , Element.inFront (displayErrors model.width model.height availableHeight model.showErrors model.errors)
+        , Element.inFront (displayErrorsOrLogs model.width model.height availableHeight model.showErrorsOrLogs model.errors model.logs)
         ]
         [ Element.row [ Element.padding UI.spacing, Element.width Element.fill ]
-            [ filler
+            [ showLogsButton model.device model.showErrorsOrLogs model.logs
+            , filler
             , micControl model.device model.mic
             , filler
             , camControl model.device model.cam
             , Element.text <| String.fromInt <| Set.size model.remotePeers
             , filler
-            , showErrorsButton model.device model.showErrors model.errors
+            , showErrorsButton model.device model.showErrorsOrLogs model.errors
             ]
         , Element.html <|
             videoStreams model.width availableHeight model.joined model.remotePeers
         ]
 
 
-displayErrors : Float -> Float -> Float -> Bool -> List String -> Element msg
-displayErrors totalWidth totalHeight availableHeight showErrors errors =
-    if not showErrors then
-        Element.none
+displayErrorsOrLogs : Float -> Float -> Float -> ShowErrorsOrLogs -> List String -> List String -> Element msg
+displayErrorsOrLogs totalWidth totalHeight availableHeight showErrorsOrLogs errors logs =
+    case showErrorsOrLogs of
+        ShowNone ->
+            Element.none
 
-    else
-        Element.column
-            [ Element.clip
-            , Element.scrollbars
-            , Element.centerX
-            , Element.width (Element.maximum (floor totalWidth) Element.shrink)
-            , Element.moveDown (totalHeight - availableHeight)
-            , Element.height (Element.maximum (floor availableHeight) Element.shrink)
-            , Element.padding 20
-            , Element.spacing 40
-            , Background.color UI.darkRed
-            , Element.htmlAttribute (HA.style "z-index" "1000")
-            , Font.size 8
-            ]
-            (List.map preformatted <| List.reverse errors)
+        ShowErrors ->
+            showLogs totalWidth totalHeight availableHeight errors
+
+        ShowLogs ->
+            showLogs totalWidth totalHeight availableHeight logs
+
+
+showLogs : Float -> Float -> Float -> List String -> Element msg
+showLogs totalWidth totalHeight availableHeight logs =
+    Element.column
+        [ Element.clip
+        , Element.scrollbars
+        , Element.centerX
+        , Element.width (Element.maximum (floor totalWidth) Element.shrink)
+        , Element.moveDown (totalHeight - availableHeight)
+        , Element.height (Element.maximum (floor availableHeight) Element.shrink)
+        , Element.padding 20
+        , Element.spacing 40
+        , Background.color UI.darkRed
+        , Element.htmlAttribute (HA.style "z-index" "1000")
+        , Font.size 8
+        ]
+        (List.map preformatted <| List.reverse logs)
 
 
 preformatted : String -> Element msg
@@ -265,12 +317,32 @@ preformatted str =
     Element.html (Html.pre [] [ Html.text str ])
 
 
-showErrorsButton : Device -> Bool -> List String -> Element Msg
-showErrorsButton device showErrors errors =
+showLogsButton : Device -> ShowErrorsOrLogs -> List String -> Element Msg
+showLogsButton device showErrorsOrLogs logs =
+    if List.isEmpty logs then
+        Element.none
+
+    else if showErrorsOrLogs == ShowLogs then
+        Icon.x
+            |> Icon.withSize (UI.controlButtonSize device.class)
+            |> Icon.toHtml []
+            |> Element.html
+            |> Element.el [ Element.Events.onClick ToggleShowLogs, Element.pointer ]
+
+    else
+        Icon.menu
+            |> Icon.withSize (UI.controlButtonSize device.class)
+            |> Icon.toHtml []
+            |> Element.html
+            |> Element.el [ Element.Events.onClick ToggleShowLogs, Element.pointer ]
+
+
+showErrorsButton : Device -> ShowErrorsOrLogs -> List String -> Element Msg
+showErrorsButton device showErrorsOrLogs errors =
     if List.isEmpty errors then
         Element.none
 
-    else if showErrors then
+    else if showErrorsOrLogs == ShowErrors then
         Icon.x
             |> Icon.withSize (UI.controlButtonSize device.class)
             |> Icon.toHtml []

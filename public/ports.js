@@ -53,10 +53,11 @@ activatePorts = (app, containerSize, WebRTCClient) => {
         },
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
         onRemoteConnected: (id) =>
-          app.ports.error.send("Remote connected: " + id),
+          app.ports.log.send("Remote connected: " + id),
         onRemoteDisconnected: app.ports.remoteDisconnected.send,
         onUpdatedStream: app.ports.updatedStream.send,
         onError: app.ports.error.send,
+        onLog: app.ports.log.send,
       });
 
       // Set the local stream to the associated video.
