@@ -286,11 +286,12 @@ layout model =
         [ Element.row [ Element.padding UI.spacing, Element.width Element.fill ]
             [ showLogsButton model.device model.showErrorsOrLogs model.logs
             , filler
-            , micControl model.device model.mic
-            , filler
-            , camControl model.device model.cam
-            , Element.text <| String.fromInt <| Set.size model.remotePeers
-            , filler
+
+            -- , micControl model.device model.mic
+            -- , filler
+            -- , camControl model.device model.cam
+            -- , Element.text <| String.fromInt <| Set.size model.remotePeers
+            -- , filler
             , showErrorsButton model.device model.showErrorsOrLogs model.errors
             ]
         , Element.html <|
