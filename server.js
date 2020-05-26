@@ -10,14 +10,16 @@ const PORT = process.env.PORT || 8443;
 // };
 
 function forceHTTPS(req, res, next) {
-  const isSecure = req.isSecure || (req.headers["x-forwarded-proto"] || '').substring(0,5) === 'https';
+  const isSecure =
+    req.isSecure ||
+    (req.headers["x-forwarded-proto"] || "").substring(0, 5) === "https";
 
-  if(isSecure) {
+  if (isSecure) {
     next();
     return;
   }
 
-  if(req.method === "GET" || req.method === 'HEAD') {
+  if (req.method === "GET" || req.method === "HEAD") {
     res.redirect(301, "https://" + req.headers.host + req.originalUrl);
   } else {
     res.status(403).send("Server requires HTTPS.");
