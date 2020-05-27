@@ -45,6 +45,8 @@ http {
 
 			# Standard proxy
 			proxy_pass http://localhost:8443;
+			proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			proxy_set_header X-Forwarded-Proto $scheme;
 		}
 		# ... stuff added by Certbot for SSL
 	}
