@@ -7,7 +7,7 @@ import Element.Border as Border
 import Element.Events
 import Element.Font as Font
 import Element.Input as Input
-import FeatherIcons as Icon
+import FeatherIcons as Icon exposing (Icon)
 import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Keyed
@@ -58,6 +58,9 @@ port error : (String -> msg) -> Sub msg
 
 
 port log : (String -> msg) -> Sub msg
+
+
+port copyToClipboard : String -> Cmd msg
 
 
 
@@ -112,6 +115,7 @@ type Msg
     | Log String
     | ToggleShowErrors
     | ToggleShowLogs
+    | CopyButtonClicked
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -221,6 +225,19 @@ update msg model =
             , Cmd.none
             )
 
+        CopyButtonClicked ->
+            ( model
+            , case model.showErrorsOrLogs of
+                ShowNone ->
+                    Cmd.none
+
+                ShowErrors ->
+                    copyToClipboard (String.join "\n\n" <| List.reverse model.errors)
+
+                ShowLogs ->
+                    copyToClipboard (String.join "\n\n" <| List.reverse model.logs)
+            )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -281,7 +298,7 @@ layout model =
         ]
 
 
-displayErrorsOrLogs : Float -> Float -> Float -> ShowErrorsOrLogs -> List String -> List String -> Element msg
+displayErrorsOrLogs : Float -> Float -> Float -> ShowErrorsOrLogs -> List String -> List String -> Element Msg
 displayErrorsOrLogs totalWidth totalHeight availableHeight showErrorsOrLogs errors logs =
     case showErrorsOrLogs of
         ShowNone ->
@@ -294,7 +311,7 @@ displayErrorsOrLogs totalWidth totalHeight availableHeight showErrorsOrLogs erro
             showLogs totalWidth totalHeight availableHeight logs
 
 
-showLogs : Float -> Float -> Float -> List String -> Element msg
+showLogs : Float -> Float -> Float -> List String -> Element Msg
 showLogs totalWidth totalHeight availableHeight logs =
     Element.column
         [ Element.clip
@@ -308,6 +325,7 @@ showLogs totalWidth totalHeight availableHeight logs =
         , Background.color UI.darkRed
         , Element.htmlAttribute (HA.style "z-index" "1000")
         , Font.size 8
+        , Element.inFront copyButton
         ]
         (List.map preformatted <| List.reverse logs)
 
@@ -664,27 +682,7 @@ joinButton =
             , Element.htmlAttribute <| HA.style "outline" "none"
             ]
             { onPress = Just (SetJoined True)
-            , label =
-                Element.el
-                    [ Background.color UI.green
-                    , Element.htmlAttribute <| HA.style "outline" "none"
-                    , Element.width <| Element.px UI.joinButtonSize
-                    , Element.height <| Element.px UI.joinButtonSize
-                    , Border.rounded <| UI.joinButtonSize // 2
-                    , Border.shadow
-                        { offset = ( 0, 0 )
-                        , size = 0
-                        , blur = UI.joinButtonBlur
-                        , color = UI.black
-                        }
-                    , Font.color UI.white
-                    ]
-                    (Icon.phone
-                        |> Icon.withSize (toFloat UI.joinButtonSize / 2)
-                        |> Icon.toHtml []
-                        |> Element.html
-                        |> Element.el [ Element.centerX, Element.centerY ]
-                    )
+            , label = roundButton UI.green UI.joinButtonSize Icon.phone
             }
         )
 
@@ -706,26 +704,42 @@ leaveButton height =
             , Element.htmlAttribute <| HA.style "outline" "none"
             ]
             { onPress = Just (SetJoined False)
-            , label =
-                Element.el
-                    [ Background.color UI.red
-                    , Element.htmlAttribute <| HA.style "outline" "none"
-                    , Element.width <| Element.px UI.leaveButtonSize
-                    , Element.height <| Element.px UI.leaveButtonSize
-                    , Border.rounded <| UI.leaveButtonSize // 2
-                    , Border.shadow
-                        { offset = ( 0, 0 )
-                        , size = 0
-                        , blur = UI.joinButtonBlur
-                        , color = UI.black
-                        }
-                    , Font.color UI.white
-                    ]
-                    (Icon.phoneOff
-                        |> Icon.withSize (toFloat UI.leaveButtonSize / 2)
-                        |> Icon.toHtml []
-                        |> Element.html
-                        |> Element.el [ Element.centerX, Element.centerY ]
-                    )
+            , label = roundButton UI.red UI.leaveButtonSize Icon.phoneOff
             }
+        )
+
+
+copyButton : Element Msg
+copyButton =
+    Input.button
+        [ Element.alignTop
+        , Element.alignRight
+        , Element.padding UI.spacing
+        , Element.htmlAttribute <| HA.style "outline" "none"
+        ]
+        { onPress = Just CopyButtonClicked
+        , label = roundButton UI.darkGrey UI.copyButtonSize Icon.copy
+        }
+
+
+roundButton : Element.Color -> Int -> Icon -> Element msg
+roundButton color size icon =
+    Element.el
+        [ Background.color color
+        , Element.htmlAttribute <| HA.style "outline" "none"
+        , Element.width <| Element.px size
+        , Element.height <| Element.px size
+        , Border.rounded <| size // 2
+        , Border.shadow
+            { offset = ( 0, 0 )
+            , size = 0
+            , blur = UI.joinButtonBlur
+            , color = UI.black
+            }
+        , Font.color UI.white
+        ]
+        (Icon.withSize (toFloat size / 2) icon
+            |> Icon.toHtml []
+            |> Element.html
+            |> Element.el [ Element.centerX, Element.centerY ]
         )

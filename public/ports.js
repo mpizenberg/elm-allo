@@ -86,4 +86,9 @@ activatePorts = (app, containerSize, WebRTCClient) => {
       video.srcObject = stream;
     });
   });
+
+  // Copy to clipboard.
+  app.ports.copyToClipboard.subscribe((str) =>
+    navigator.clipboard.writeText(str)
+  );
 };

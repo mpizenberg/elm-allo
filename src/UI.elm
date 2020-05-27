@@ -37,6 +37,11 @@ leaveButtonSize =
     80
 
 
+copyButtonSize : Int
+copyButtonSize =
+    48
+
+
 joinButtonBlur : Float
 joinButtonBlur =
     10
