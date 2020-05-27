@@ -1,6 +1,13 @@
 # Allo
 
-Visio conference WebRTC service limited to STUN.
+Videoconference WebRTC example with an Elm frontend.
+Requires https.
+More info in the [post on Elm discourse][discourse].
+
+![screenshots][screenshots]
+
+[discourse]: https://discourse.elm-lang.org/t/elm-allo-a-webrtc-and-elm-videoconference-example/5809
+[screenshots]: https://mpizenberg.github.io/resources/elm-allo/screenshots.jpg
 
 ## Setup and Run
 
@@ -44,24 +51,31 @@ http {
 }
 ```
 
-## Perfect Negociation
+## WebRTC Negotiation
 
-Perfect negociation is a pattern to handle perfectly
-without glare (signaling collisions) changes in peer states.
-With this pattern, we can simply call `pc.addTrack`
-on one end and let it be perfectly handled on both ends.
-A very useful blog post about perfect negociation is available at
-https://blog.mozilla.org/webrtc/perfect-negotiation-in-webrtc/
+Establishing a connection between two peers requires first
+a negotiation between each client.
+The server has the broker's role by relaying all messages between those peers.
 
-The example is implemented in the WebRTC 1.0 updated spec:
-https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
+All the WebRTC-specific code, including negotiation,
+is located in the `public/WebRTCClient.js` file.
+A high-level API is provided with the `WebRTCCLient()` function.
+Intermediate-level APIs are also provided with the `SignalingSocket()`
+and `PeerConnection()` functions.
+The core of the negotiation logic lives inside the `Peerconnection()` function.
+Two negotiation algorithms are implemented, but only one is activated.
 
-That example is also detailed on MDN:
-https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Perfect_negotiation
+The first negotiation algorithm follows a simple caller/callee pattern.
+It corresponds to the `simpleNegotiation()` function.
 
-It seems however that the updated 1.0 API
-(with new versions of `setLocalDescription`,
-`setRemoteDescription` and `restartIce`)
-is not implemented in Safari yet.
-An equivalent version with the "old" WebRTC 1.0 spec
-is available as a reference at the end of the first blog post.
+The second negotiation algorithm is called perfect negotiation.
+Both peers are considered equally and it tries to handle peer changes of states
+without glare (signaling collisions).
+A [very useful blog post][perfect-negotiation] by Jan-Ivar Bruaroey
+introduces the perfect negotiation pattern.
+Unfortunately, [browsers still have some issues][not-so-perfect] preventing
+the usage of this pattern so it has been deactivated in our code.
+This corresponds to the `perfectNegotiation()` function.
+
+[perfect-negotiation]: https://blog.mozilla.org/webrtc/perfect-negotiation-in-webrtc/
+[not-so-perfect]: https://stackoverflow.com/questions/61956693/webrtc-perfect-negotiation-issues
