@@ -38,11 +38,13 @@ const peersIds = new Map();
 let idCount = 0;
 
 wss.on("connection", (ws, req) => {
-  console.log("Connection of " + req.connection.remoteAddress);
+  let remoteAddress =
+    req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+  console.log("Connection of " + remoteAddress);
   ws.on("message", (jsonMsg) => {
     let msg = JSON.parse(jsonMsg);
     if (msg == "ping") {
-      console.log("ping from", req.connection.remoteAddress);
+      console.log("ping from", remoteAddress);
       ws.send(JSON.stringify("pong"));
     } else if (msg.msgType == "join") {
       console.log("join", idCount);
